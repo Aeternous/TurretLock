@@ -1,14 +1,23 @@
+/*        Name & E-mail:
+Pranae Harirajan, phari012@ucr.edu
+ *        Assignment:
+Custom Laboratory Project - TurretLock - Demo 2
+ *        Demo Video #1:
+https://www.youtube.com/shorts/XU2ui8-Vj4o
+ *        Demo Video #2:
+<PASTE YOUR DEMO 2 YOUTUBE LINK HERE>
+ */
+
 #ifndef PHARI012_TFT_H
 #define PHARI012_TFT_H
 
 #include <avr/io.h>
-#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// ---- ST7735 1.8" 128x160, portrait orientation ----
+// ST7735 1.8" 128x160, portrait orientation.
 // Control pins (AVR <- Uno):
 //   TFT CS  -> D9  (PB1)
 //   TFT DC  -> D8  (PB0)
@@ -30,12 +39,12 @@ extern "C" {
 #define TFT_YELLOW 0xFFE0
 #define TFT_CYAN   0x07FF
 
-void tft_init(void);
-void tft_fill_screen(uint16_t color);
-void tft_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void tft_init();
+void tft_fill_screen(unsigned int color);
+void tft_fill_rect(int x, int y, int w, int h, unsigned int color);
 // 5x7 font, scaled by 'size'. Supports 0-9, A-Z, ':' and space (others blank).
-void tft_draw_char(int16_t x, int16_t y, char c, uint16_t fg, uint16_t bg, uint8_t size);
-void tft_draw_text(int16_t x, int16_t y, const char *s, uint16_t fg, uint16_t bg, uint8_t size);
+void tft_draw_char(int x, int y, char c, unsigned int fg, unsigned int bg, unsigned char size);
+void tft_draw_text(int x, int y, const char *s, unsigned int fg, unsigned int bg, unsigned char size);
 
 #ifdef __cplusplus
 }
