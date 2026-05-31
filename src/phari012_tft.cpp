@@ -3,7 +3,7 @@
  * Tiny ST7735 TFT driver, written from scratch (no libraries).
  *
  * How it talks to the screen: same idea as the LED matrix - we wiggle a data
- * pin and a clock pin by hand to shove bytes out (we reuse SPI_SEND from the
+ * pin and a clock pin by hand to shove bytes out (we reuse sendByte from the
  * matrix code, since they share those two pins). The screen also needs three
  * of its own control lines:
  *   CS  - "I'm talking to YOU" (low while we send to the TFT)
@@ -20,7 +20,7 @@
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 #include "phari012_tft.h"
-#include "phari012_max7219.h"   // SPI_SEND(), and the shared data/clock pins
+#include "phari012_max7219.h"   // sendByte(), and the shared data/clock pins
 
 // the screen's control pins
 #define TFT_CS   PB1   // D9
@@ -40,8 +40,8 @@
 #define resetLow()     (PORTD &= ~(1 << TFT_RST))
 #define resetHigh()    (PORTD |=  (1 << TFT_RST))
 
-static inline void sendCommand(uint8_t c) { modeCommand(); SPI_SEND(c); }
-static inline void sendData(uint8_t d)    { modeData();    SPI_SEND(d); }
+static inline void sendCommand(uint8_t c) { modeCommand(); sendByte(c); }
+static inline void sendData(uint8_t d)    { modeData();    sendByte(d); }
 
 
 // the font
@@ -128,8 +128,8 @@ void tft_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
     setDrawArea((uint8_t)x, (uint8_t)y, (uint8_t)(x + w - 1), (uint8_t)(y + h - 1));
     modeData();
     for (uint32_t pixels = (uint32_t)w * (uint32_t)h; pixels; pixels--) {
-        SPI_SEND(colorHigh);
-        SPI_SEND(colorLow);
+        sendByte(colorHigh);
+        sendByte(colorLow);
     }
     releaseTFT();
 }
