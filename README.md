@@ -82,7 +82,6 @@ Newest first. Grouped by file.
 
 ### Submission housekeeping
 - Renamed `*.c` source files to `*.cpp` to match the lab's naming rule.
-- Added Demo Video links to the `phari012_main.cpp` header.
 
 ### Demo 2 base
 - `phari012_main.cpp`: game loop, background-timer dual servos (Timer1), lock
