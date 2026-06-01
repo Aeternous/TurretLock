@@ -1,7 +1,15 @@
-/*        Name & E-mail:
+/*        Your Name & E-mail:
 Pranae Harirajan, phari012@ucr.edu
- *        Assignment:
-Custom Laboratory Project - TurretLock - Demo 2
+ *        Discussion Section:
+
+ *        Assignment: Custom Laboratory Project - Demo Video #2
+
+ *        Exercise Description: ST7735 TFT driver and 5x7 font (no libraries)
+
+ *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
+yes
+ *
+ *        Demo Link: <URL>
  */
 
 // Tiny ST7735 TFT driver, written from scratch (no libraries).

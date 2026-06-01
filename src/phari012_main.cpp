@@ -1,9 +1,15 @@
-/*        Name & E-mail:
+/*        Your Name & E-mail:
 Pranae Harirajan, phari012@ucr.edu
- *        Assignment:
-Custom Laboratory Project - TurretLock - Demo 2
+ *        Discussion Section:
+
+ *        Assignment: Custom Laboratory Project - Demo Video #2
+
+ *        Exercise Description: TurretLock game loop - matrix gameplay, dual servos, lock LEDs, TFT score
+
  *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
 yes
+ *
+ *        Demo Link: <URL>
  */
 
 // TurretLock - the LED matrix is the playfield. Walls sit on the far left and

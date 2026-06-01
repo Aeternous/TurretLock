@@ -1,7 +1,15 @@
-/*        Name & E-mail:
+/*        Your Name & E-mail:
 Pranae Harirajan, phari012@ucr.edu
- *        Assignment:
-Custom Laboratory Project - TurretLock - Demo 2
+ *        Discussion Section:
+
+ *        Assignment: Custom Laboratory Project - Demo Video #2
+
+ *        Exercise Description: MAX7219 4-in-1 LED matrix driver (bit-banged SPI)
+
+ *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
+yes
+ *
+ *        Demo Link: <URL>
  */
 
 // Driver for the chain of four 8x8 LED matrices (MAX7219 chips).
