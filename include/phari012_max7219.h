@@ -1,16 +1,3 @@
-/*        Your Name & E-mail:
-Pranae Harirajan, phari012@ucr.edu
- *        Discussion Section:
-RB
-
- *        Assignment: Custom Laboratory Project - Demo Video #2
-
- *        Exercise Description: Header for the MAX7219 4-in-1 LED matrix driver
-
- *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
-yes
- */
-
 #ifndef MAX7219_H
 #define MAX7219_H
 

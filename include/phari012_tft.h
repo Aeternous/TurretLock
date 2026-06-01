@@ -1,16 +1,3 @@
-/*        Your Name & E-mail:
-Pranae Harirajan, phari012@ucr.edu
- *        Discussion Section:
-RB
-
- *        Assignment: Custom Laboratory Project - Demo Video #2
-
- *        Exercise Description: Header for the ST7735 TFT driver
-
- *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
-yes
- */
-
 #ifndef PHARI012_TFT_H
 #define PHARI012_TFT_H
 

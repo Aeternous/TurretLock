@@ -1,16 +1,3 @@
-/*        Your Name & E-mail:
-Pranae Harirajan, phari012@ucr.edu
- *        Discussion Section:
-RB
-
- *        Assignment: Custom Laboratory Project - Demo Video #2
-
- *        Exercise Description: ST7735 TFT driver and 5x7 font (no libraries)
-
- *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
-yes
- */
-
 // Tiny ST7735 TFT driver, written from scratch (no libraries).
 // Same idea as the LED matrix - we wiggle a data pin and a clock pin by hand to
 // shove bytes out (we reuse sendByte from the matrix code, since they share

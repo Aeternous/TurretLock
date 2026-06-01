@@ -1,16 +1,3 @@
-/*        Your Name & E-mail:
-Pranae Harirajan, phari012@ucr.edu
- *        Discussion Section:
-RB
-
- *        Assignment: Custom Laboratory Project - Demo Video #2
-
- *        Exercise Description: ADC (joystick) read, value mapping, and bit helpers
-
- *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
-yes
- */
-
 #ifndef PERIPH_H
 #define PERIPH_H
 
