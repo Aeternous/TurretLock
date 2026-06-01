@@ -4,10 +4,6 @@ Pranae Harirajan, phari012@ucr.edu
 Custom Laboratory Project - TurretLock - Demo 2
  *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
 yes
- *        Demo Video #1:
-https://www.youtube.com/shorts/XU2ui8-Vj4o
- *        Demo Video #2:
-<PASTE YOUR DEMO 2 YOUTUBE LINK HERE>
  */
 
 // TurretLock - the LED matrix is the playfield. Walls sit on the far left and

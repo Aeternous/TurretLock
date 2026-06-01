@@ -2,10 +2,6 @@
 Pranae Harirajan, phari012@ucr.edu
  *        Assignment:
 Custom Laboratory Project - TurretLock - Demo 2
- *        Demo Video #1:
-https://www.youtube.com/shorts/XU2ui8-Vj4o
- *        Demo Video #2:
-<PASTE YOUR DEMO 2 YOUTUBE LINK HERE>
  */
 
 #ifndef PHARI012_TFT_H

@@ -3,8 +3,6 @@
 A bare-metal AVR (Arduino Uno) game for a custom lab. No Arduino libraries —
 everything is hand-written against the chip's registers.
 
-Demo Video #1: https://www.youtube.com/shorts/XU2ui8-Vj4o
-
 ## The game
 The LED matrix is the playfield. Walls sit on the far left and far right (4
 columns each), and a 2x2 target appears in the middle. You move an aim dot with
