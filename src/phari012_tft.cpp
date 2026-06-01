@@ -1,6 +1,7 @@
 /*        Your Name & E-mail:
 Pranae Harirajan, phari012@ucr.edu
  *        Discussion Section:
+RB
 
  *        Assignment: Custom Laboratory Project - Demo Video #2
 
@@ -8,8 +9,6 @@ Pranae Harirajan, phari012@ucr.edu
 
  *        I acknowledge all content contained herein, excluding template or example code, is my own original work.
 yes
- *
- *        Demo Link: <URL>
  */
 
 // Tiny ST7735 TFT driver, written from scratch (no libraries).
