@@ -1,11 +1,5 @@
-// Tiny ST7735 TFT driver, written from scratch (no libraries).
-// Same idea as the LED matrix - we wiggle a data pin and a clock pin by hand to
-// shove bytes out (we reuse sendByte from the matrix code, since they share
-// those two pins). The screen also needs three control lines of its own:
-//   CS  - "I'm talking to YOU" (low while we send to the TFT)
-//   DC  - tells the screen whether a byte is a command or pixel data
-//   RST - hardware reset
-// All of this runs from main(), so it never collides with the servo interrupts.
+// Bare-metal ST7735 TFT driver (no libraries). Bytes are bit-banged out on the
+// data/clock pins shared with the matrix, plus its own CS/DC/RST control lines.
 
 #ifndef F_CPU
 #define F_CPU 16000000UL
@@ -15,19 +9,18 @@
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 #include "phari012_tft.h"
-#include "phari012_max7219.h"   // sendByte(), and the shared data/clock pins
+#include "phari012_max7219.h"   // sendByte() and the shared data/clock pins
 
 // The screen's control pins
 #define TFT_CS   PB1   // D9
 #define TFT_DC   PB0   // D8
 #define TFT_RST  PD7   // D7
 
-// If the picture is nudged a couple pixels off, tweak these. Red-tab 1.8"
-// boards use 0,0; green-tab boards often need 2 and 1.
+// Nudge these if the picture is a couple pixels off (green-tab boards: 2 and 1)
 #define COL_OFFSET 0
 #define ROW_OFFSET 0
 
-// Little shortcuts so the code reads like plain instructions
+// Short helpers so the code reads like plain instructions
 #define selectTFT()    (PORTB &= ~(1 << TFT_CS))   // start talking to the screen
 #define releaseTFT()   (PORTB |=  (1 << TFT_CS))   // done talking
 #define modeCommand()  (PORTB &= ~(1 << TFT_DC))   // next byte is a command
@@ -35,11 +28,17 @@
 #define resetLow()     (PORTD &= ~(1 << TFT_RST))
 #define resetHigh()    (PORTD |=  (1 << TFT_RST))
 
-void sendCommand(unsigned char c) { modeCommand(); sendByte(c); }
-void sendData(unsigned char d)    { modeData();    sendByte(d); }
+// Send a command byte (DC low) or a data byte (DC high)
+void sendCommand(unsigned char c) {
+  modeCommand();
+  sendByte(c);
+}
+void sendData(unsigned char d) {
+  modeData();
+  sendByte(d);
+}
 
-// The font: each letter is 5 columns of 7 dots. A byte holds one column; bit 0
-// is the top dot, bit 6 the bottom. We only included the characters we use.
+// 5x7 font: one byte per column, bit 0 = top row. Only the characters we use.
 const unsigned char FONT_DIGITS[] PROGMEM = {
   0x3E,0x51,0x49,0x45,0x3E,  // 0
   0x00,0x42,0x7F,0x40,0x00,  // 1
@@ -82,34 +81,46 @@ const unsigned char FONT_LETTERS[] PROGMEM = {
 };
 const unsigned char FONT_COLON[5] PROGMEM = { 0x00, 0x00, 0x14, 0x00, 0x00 };
 
-// Copy the 5 columns of one character into 'out'
+// Look up one character's 5 column-bytes (unknown char = blank)
 void getLetterShape(char c, unsigned char out[5]) {
   const unsigned char *shape = 0;
-  if (c >= '0' && c <= '9')      { shape = &FONT_DIGITS[(c - '0') * 5]; }
-  else if (c >= 'A' && c <= 'Z') { shape = &FONT_LETTERS[(c - 'A') * 5]; }
-  else if (c == ':')             { shape = FONT_COLON; }
+  if (c >= '0' && c <= '9') {
+    shape = &FONT_DIGITS[(c - '0') * 5];
+  } else if (c >= 'A' && c <= 'Z') {
+    shape = &FONT_LETTERS[(c - 'A') * 5];
+  } else if (c == ':') {
+    shape = FONT_COLON;
+  }
   for (unsigned char i = 0; i < 5; i++) {
-    out[i] = shape ? pgm_read_byte(&shape[i]) : 0x00;   // unknown char = blank
+    out[i] = shape ? pgm_read_byte(&shape[i]) : 0x00;
   }
 }
 
-// Tell the screen which rectangle we're about to fill, then it expects that
-// many pixels (2 bytes each) until we stop.
+// Set the rectangle to fill; pixel data streams in right after
 void setDrawArea(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1) {
-  sendCommand(0x2A);                       // set column range
+  sendCommand(0x2A);                       // column range
   sendData(0); sendData(x0 + COL_OFFSET);
   sendData(0); sendData(x1 + COL_OFFSET);
-  sendCommand(0x2B);                       // set row range
+  sendCommand(0x2B);                       // row range
   sendData(0); sendData(y0 + ROW_OFFSET);
   sendData(0); sendData(y1 + ROW_OFFSET);
   sendCommand(0x2C);                       // here come the pixels
 }
 
+// Fill a rectangle with one color
 void tft_fill_rect(int x, int y, int w, int h, unsigned int color) {
-  if (w <= 0 || h <= 0) { return; }
-  if (x >= TFT_W || y >= TFT_H) { return; }
-  if (x + w > TFT_W) { w = TFT_W - x; }    // don't draw off the edge
-  if (y + h > TFT_H) { h = TFT_H - y; }
+  if (w <= 0 || h <= 0) {
+    return;
+  }
+  if (x >= TFT_W || y >= TFT_H) {
+    return;
+  }
+  if (x + w > TFT_W) {
+    w = TFT_W - x;                         // clip to the screen edge
+  }
+  if (y + h > TFT_H) {
+    h = TFT_H - y;
+  }
 
   unsigned char colorHigh = (unsigned char)(color >> 8);
   unsigned char colorLow  = (unsigned char)(color & 0xFF);
@@ -124,14 +135,16 @@ void tft_fill_rect(int x, int y, int w, int h, unsigned int color) {
   releaseTFT();
 }
 
+// Fill the whole screen
 void tft_fill_screen(unsigned int color) {
   tft_fill_rect(0, 0, TFT_W, TFT_H, color);
 }
 
-// Draw one character as a grid of little squares (size = how many real pixels
-// wide each font-dot becomes, so size 4 makes nice big digits)
+// Draw one character; each font-dot becomes a size*size block
 void tft_draw_char(int x, int y, char c, unsigned int fg, unsigned int bg, unsigned char size) {
-  if (size == 0) { size = 1; }
+  if (size == 0) {
+    size = 1;
+  }
   unsigned char shape[5];
   getLetterShape(c, shape);
   for (unsigned char col = 0; col < 6; col++) {        // 5 columns + 1 blank gap
@@ -143,18 +156,19 @@ void tft_draw_char(int x, int y, char c, unsigned int fg, unsigned int bg, unsig
   }
 }
 
+// Draw a string left to right
 void tft_draw_text(int x, int y, const char *s, unsigned int fg, unsigned int bg, unsigned char size) {
-  if (size == 0) { size = 1; }
+  if (size == 0) {
+    size = 1;
+  }
   while (*s) {
     tft_draw_char(x, y, *s, fg, bg, size);
-    x += 6 * size;                                     // step over to the next character slot
+    x += 6 * size;                                     // next character slot
     s++;
   }
 }
 
-// Startup: this is the magic-number part - a fixed sequence the ST7735 chip
-// wants to hear before it'll show anything (wake up, set 16-bit color, gamma,
-// etc). It comes straight from the chip's datasheet - set it once and forget.
+// ST7735 power-on sequence (fixed values from the datasheet). Run once.
 void tft_init() {
   DDRB |= (1 << TFT_CS) | (1 << TFT_DC) | (1 << MAX_DIN_BIT) | (1 << MAX_CLK_BIT);
   DDRD |= (1 << TFT_RST);
@@ -186,18 +200,18 @@ void tft_init() {
   sendCommand(0x36); sendData(0x08);                            // orientation (portrait, flipped 180)
   sendCommand(0x3A); sendData(0x05);                            // 16-bit color
 
-  sendCommand(0xE0);                                            // gamma curve +
+  sendCommand(0xE0);                                            // gamma +
   sendData(0x0F); sendData(0x1A); sendData(0x0F); sendData(0x18);
   sendData(0x2F); sendData(0x28); sendData(0x20); sendData(0x22);
   sendData(0x1F); sendData(0x1B); sendData(0x23); sendData(0x37);
   sendData(0x00); sendData(0x07); sendData(0x02); sendData(0x10);
-  sendCommand(0xE1);                                            // gamma curve -
+  sendCommand(0xE1);                                            // gamma -
   sendData(0x0F); sendData(0x1B); sendData(0x0F); sendData(0x17);
   sendData(0x33); sendData(0x2C); sendData(0x29); sendData(0x2E);
   sendData(0x30); sendData(0x30); sendData(0x39); sendData(0x3F);
   sendData(0x00); sendData(0x07); sendData(0x03); sendData(0x10);
 
   sendCommand(0x13); _delay_ms(10);                             // normal display mode
-  sendCommand(0x29); _delay_ms(100);                            // turn the display on
+  sendCommand(0x29); _delay_ms(100);                            // display on
   releaseTFT();
 }

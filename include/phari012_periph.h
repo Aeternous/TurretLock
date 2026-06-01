@@ -24,8 +24,12 @@ static inline unsigned int ADC_read(unsigned char chnl) {
 // Rescale a value from one range into another (joystick 0-1023 -> 4-27 etc.)
 // and clamp it so it never leaves the target range
 static inline long map_value(long fromLow, long fromHigh, long toLow, long toHigh, long value) {
-  if (value < fromLow)  { value = fromLow; }
-  if (value > fromHigh) { value = fromHigh; }
+  if (value < fromLow) {
+    value = fromLow;
+  }
+  if (value > fromHigh) {
+    value = fromHigh;
+  }
   return toLow + (value - fromLow) * (toHigh - toLow) / (fromHigh - fromLow);
 }
 

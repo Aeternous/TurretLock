@@ -9,12 +9,8 @@
    is my own original work. yes
  */
 
-// TurretLock - the LED matrix is the playfield. Walls sit on the far left and
-// far right; a 2x2 target appears between them. You glide an aim dot with the
-// joystick (push to move, let go to stay put). Land on the target and you lock
-// on - the red LED stops, the green LED stays lit. Press the joystick button
-// while locked to score: the number on the TFT goes up and a new target spawns.
-// Two servos act as a turret that points wherever the dot is.
+// TurretLock: glide a dot on the LED matrix with the joystick, land on the 2x2
+// target to lock on (green LED), press to score. Two servos track the dot.
 
 #ifndef F_CPU
 #define F_CPU 16000000UL
@@ -67,9 +63,8 @@ unsigned int  score = 0;
 unsigned char lockedOn = 0;             // is the dot touching the target?
 unsigned int  randomState = 0xACE1;     // seed for the random target placement
 
-// Servos: Timer1 makes the pulses in the background so the game never stalls.
-// Every 20ms it raises both pins; OCR1A / OCR1B decide when each drops again,
-// and that pulse width is the angle. main() just writes the angle it wants.
+// Servos run on Timer1 in the background: each 20ms frame raises both pins,
+// then OCR1A/OCR1B set how long each stays high (pulse width = angle).
 void setupServos() {
   DDRC  |= (1 << SERVO_X) | (1 << SERVO_Y);
   PORTC &= ~((1 << SERVO_X) | (1 << SERVO_Y));
@@ -80,9 +75,17 @@ void setupServos() {
   OCR1B  = SERVO_MID;
   TIMSK1 = (1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B);
 }
-ISR(TIMER1_OVF_vect)   { PORTC |=  (1 << SERVO_X) | (1 << SERVO_Y); }  // frame start
-ISR(TIMER1_COMPA_vect) { PORTC &= ~(1 << SERVO_X); }                   // X pulse end
-ISR(TIMER1_COMPB_vect) { PORTC &= ~(1 << SERVO_Y); }                   // Y pulse end
+// Frame start: raise both servo pins
+ISR(TIMER1_OVF_vect) {
+  PORTC |= (1 << SERVO_X) | (1 << SERVO_Y);
+}
+// Pulse done: drop the pin
+ISR(TIMER1_COMPA_vect) {
+  PORTC &= ~(1 << SERVO_X);
+}
+ISR(TIMER1_COMPB_vect) {
+  PORTC &= ~(1 << SERVO_Y);
+}
 
 // Serial (so we can watch the score in the monitor)
 void setupSerial() {
@@ -101,7 +104,11 @@ void serialText(const char *s) {
 void numberToText(unsigned int n, char *out) {
   char rev[6];
   unsigned char i = 0;
-  if (n == 0) { out[0] = '0'; out[1] = '\0'; return; }
+  if (n == 0) {
+    out[0] = '0';
+    out[1] = '\0';
+    return;
+  }
   while (n) { rev[i++] = '0' + (n % 10); n /= 10; }
   unsigned char j = 0;
   while (i--) { out[j++] = rev[i]; }
@@ -126,17 +133,23 @@ unsigned int randomNext() {
   return randomState;
 }
 
-// Light one dot at screen position (x, y), where x = 0 is the far-left column
-// and x = 31 the far-right. This is the single place that knows how our screen
-// coordinates map onto the chained panels, so the switches above fix any wiring
-// flip without touching the rest of the code.
+// Light one dot at screen (x, y); x=0 is far-left. The only place that maps our
+// coordinates onto the chained panels, so the switches above fix any wiring flip.
 void plot(unsigned char grid[8][4], unsigned char x, unsigned char y) {
-  if (x >= COLS || y >= ROWS) { return; }
-  unsigned char panel = x / 8;                 // which of the 4 panels
-  unsigned char bit   = x % 8;                  // which LED inside that panel
-  if (REVERSE_PANELS) { panel = 3 - panel; }
-  if (REVERSE_BITS)   { bit   = 7 - bit; }
-  if (FLIP_Y)         { y     = (ROWS - 1) - y; }
+  if (x >= COLS || y >= ROWS) {
+    return;
+  }
+  unsigned char panel = x / 8;   // which of the 4 panels
+  unsigned char bit   = x % 8;   // which LED inside that panel
+  if (REVERSE_PANELS) {
+    panel = 3 - panel;
+  }
+  if (REVERSE_BITS) {
+    bit = 7 - bit;
+  }
+  if (FLIP_Y) {
+    y = (ROWS - 1) - y;
+  }
   grid[y][panel] |= (1 << bit);
 }
 
@@ -171,7 +184,9 @@ int main(void) {
   tft_draw_text(8, 10, "SCORE", TFT_WHITE, TFT_BLACK, 2);
 
   randomState ^= (unsigned int)(ADC_read(0) << 6) ^ (unsigned int)ADC_read(1);  // stir in joystick noise
-  if (randomState == 0) { randomState = 0xBEEF; }
+  if (randomState == 0) {
+    randomState = 0xBEEF;
+  }
   newTarget();
   score = 0;
   showScore(score);
@@ -187,16 +202,28 @@ int main(void) {
     // Joystick as a speed: push moves the dot, releasing leaves it put
     int pushX = (int)ADC_read(0) - 512;
     int pushY = (int)ADC_read(1) - 512;
-    if (pushX > -JOY_DEADZONE && pushX < JOY_DEADZONE) { pushX = 0; }
-    if (pushY > -JOY_DEADZONE && pushY < JOY_DEADZONE) { pushY = 0; }
+    if (pushX > -JOY_DEADZONE && pushX < JOY_DEADZONE) {
+      pushX = 0;
+    }
+    if (pushY > -JOY_DEADZONE && pushY < JOY_DEADZONE) {
+      pushY = 0;
+    }
 
     fineX += pushX / JOY_SPEED;
     fineY -= pushY / JOY_SPEED;                  // minus so pushing up moves up
 
-    if (fineX < 0) { fineX = 0; }
-    if (fineX > (RIGHT_EDGE - LEFT_EDGE) * FINE) { fineX = (RIGHT_EDGE - LEFT_EDGE) * FINE; }
-    if (fineY < 0) { fineY = 0; }
-    if (fineY > (ROWS - 1) * FINE) { fineY = (ROWS - 1) * FINE; }
+    if (fineX < 0) {
+      fineX = 0;
+    }
+    if (fineX > (RIGHT_EDGE - LEFT_EDGE) * FINE) {
+      fineX = (RIGHT_EDGE - LEFT_EDGE) * FINE;
+    }
+    if (fineY < 0) {
+      fineY = 0;
+    }
+    if (fineY > (ROWS - 1) * FINE) {
+      fineY = (ROWS - 1) * FINE;
+    }
 
     aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);  // always stays between the walls
     aimY = (unsigned char)(fineY / FINE);
@@ -223,13 +250,18 @@ int main(void) {
       PORTD &= ~(1 << RED_LED);
     } else {
       PORTD &= ~(1 << GREEN_LED);
-      if (blink) { PORTD |=  (1 << RED_LED); }
-      else       { PORTD &= ~(1 << RED_LED); }
+      if (blink) {
+        PORTD |= (1 << RED_LED);
+      } else {
+        PORTD &= ~(1 << RED_LED);
+      }
     }
 
-    // Every so often re-send the matrix config, so a chip that got glitched by
-    // a noisy/loose wire (e.g. stuck all-on) heals itself
-    if ((frame & 0x1F) == 0) { matrixRefreshConfig(); }
+    // Re-send the matrix config now and then, so a chip glitched by a loose
+    // wire (e.g. stuck all-on) heals itself
+    if ((frame & 0x1F) == 0) {
+      matrixRefreshConfig();
+    }
 
     // Draw walls, target, then the dot, and push it to the matrix
     for (unsigned char r = 0; r < 8; r++) {
