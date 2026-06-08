@@ -5,7 +5,8 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Preformatted,
-                                Table, TableStyle, HRFlowable)
+                                Table, TableStyle, HRFlowable, Image)
+from reportlab.lib.utils import ImageReader
 
 SRC = "phari012_custom_lab_report.md"
 OUT = "phari012_custom_lab_report.pdf"
@@ -44,6 +45,24 @@ def flush_para():
 while i < len(lines):
     line = lines[i]
     s = line.strip()
+
+    # image:  ![alt](path)
+    mimg = re.match(r"!\[.*?\]\((.+?)\)", s)
+    if mimg:
+        flush_para()
+        path = mimg.group(1)
+        iw, ih = ImageReader(path).getSize()
+        w = min(5.2 * inch, iw)
+        h = w * ih / iw
+        if h > 5.5 * inch:
+            h = 5.5 * inch
+            w = h * iw / ih
+        img = Image(path, width=w, height=h)
+        img.hAlign = "CENTER"
+        story.append(img)
+        story.append(Spacer(1, 8))
+        i += 1
+        continue
 
     # code fence
     if s.startswith("```"):

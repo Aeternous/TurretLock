@@ -114,7 +114,9 @@ All peripheral drivers (LED matrix, TFT, ADC/joystick) were written from scratch
 
 ## Wiring Diagram
 
-_<insert hand-drawn or tool-drawn wiring diagram here, plus a photo of the setup>_
+![Wiring diagram](wiring_diagram.png)
+
+![Physical setup photo](setup_photo.jpg)
 
 Pin map (Arduino Uno):
 
