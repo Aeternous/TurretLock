@@ -334,11 +334,29 @@ int TickHUD(int state) {
       prevScore = 0xFFFF;   // force the score and hearts to draw below
       prevLives = 0xFF;
     } else if (gameState == ST_OVER) {
-      tft_draw_text_centered(25, "GAME OVER", TFT_RED, TFT_BLACK, 2);
-      tft_draw_text_centered(75, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
+      tft_draw_text_centered(10, "GAME OVER", TFT_RED, TFT_BLACK, 2);
+      // Show the player's final score in the middle if they didn't beat the record
+      if (score < highScore) {
+        char sline[16];
+        unsigned char p = 0;
+        const char *lbl = "SCORE: ";
+        while (lbl[p]) {
+          sline[p] = lbl[p];
+          p++;
+        }
+        char num[6];
+        numberToText(score, num);
+        unsigned char q = 0;
+        while (num[q]) {
+          sline[p++] = num[q++];
+        }
+        sline[p] = '\0';
+        tft_draw_text_centered(52, sline, TFT_WHITE, TFT_BLACK, 2);
+      }
+      tft_draw_text_centered(88, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
       numberToText(highScore, text);
-      tft_draw_text_centered(100, text, TFT_YELLOW, TFT_BLACK, 3);
-      tft_draw_text_centered(145, "PRESS START", TFT_CYAN, TFT_BLACK, 1);
+      tft_draw_text_centered(110, text, TFT_YELLOW, TFT_BLACK, 3);
+      tft_draw_text_centered(150, "PRESS START", TFT_CYAN, TFT_BLACK, 1);
     }
     prevState = gameState;
   }
