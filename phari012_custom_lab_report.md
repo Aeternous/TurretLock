@@ -150,95 +150,17 @@ The two servos are generated independently by Timer1 in the background.
 
 ## SynchSM Diagrams
 
-Notation: each box is a state; arrows are transitions with their conditions.
-"Period" is the task's tick period.
+One SynchSM per task. Each shows the period, local variables, states, the initial
+transition, self-loops (the "stay" condition), and the state actions.
 
-### Task 1 - Joystick (period 20 ms)
-Local variables: none (button state is kept in the shared variables)
+![T1 Joystick SynchSM](sm_joystick.png)
 
-```
-        +----------------------------+
-   ---> |          JOY_RUN           |  (self-loop every tick)
-        | read ADC0/ADC1 -> fineX/Y  |
-        | clamp -> aimX/aimY         |
-        | button edge -> firePressed |
-        | debounced tap -> clickDone |
-        +----------------------------+
-```
+![T2 Game SynchSM](sm_game.png)
 
-### Task 2 - Game (period 20 ms)
-Local variables: `resetTimer:uint`, `overSettle:uint`, `overClicks:uchar`, `overClickTimer:uint`
+![T3 Matrix SynchSM](sm_matrix.png)
 
-```
-   +----------+   tap    +---------+   miss & 0 lives   +----------+
-   | ST_START | -------> | ST_PLAY | -----------------> | ST_OVER  |
-   +----------+          +---------+  (save high score) +----------+
-                          hit: +100, new target
-   ST_OVER, single click -> ST_RESET   (reset high-score prompt)
-   ST_OVER, double click -> ST_START   (start a new game)
-   ST_RESET, tap         -> ST_START   (confirm wipe); wait 4s -> ST_START (cancel)
-   (ST_OVER ignores input for the first 600 ms to drop the fatal shot)
-```
-Transitions in words:
-- ST_START: a tap starts a new game (ST_PLAY). Reset is not reachable from here.
-- ST_PLAY: on fire, if locked -> +100 and respawn; if miss -> lose a life; at 0
-  lives, save the high score to EEPROM and go to ST_OVER.
-- ST_OVER: ignore input for 600 ms; then a single click -> ST_RESET (reset prompt),
-  or a double click -> ST_START (new game).
-- ST_RESET: a tap -> set highScore=0, write EEPROM, go ST_START; no tap for 4 s
-  -> cancel to ST_START.
+![T4 Servo SynchSM](sm_servo.png)
 
+![T5 HUD/TFT SynchSM](sm_hud.png)
 
-### Task 3 - Matrix (period 30 ms)
-Local variable: `grid[8][4]:uchar`
-
-```
-        +-------------------------------+
-   ---> |            MAT_RUN            |
-        | clear grid                    |
-        | if gameState==ST_PLAY:        |
-        |   draw walls, 2x2 target, dot |
-        | push grid to the matrix       |
-        +-------------------------------+
-```
-
-### Task 4 - Servo (period 40 ms)
-No local variables.
-
-```
-        +-----------------------------+
-   ---> |           SRV_RUN           |
-        | OCR1A = map(aimX -> angle)  |
-        | OCR1B = map(aimY -> angle)  |
-        +-----------------------------+
-```
-
-### Task 5 - HUD / TFT (period 60 ms)
-Local variables: `prevState:uchar`, `prevScore:uint`, `prevLives:uchar`
-
-```
-        +------------------------------------------+
-   ---> |                 HUD_RUN                  |
-        | if state changed: repaint that screen    |
-        |   START: PLAY GAME / PRESS START / HI    |
-        |   PLAY : SCORE label                     |
-        |   OVER : GAME OVER / [SCORE] / HIGH SCORE|
-        |   RESET: RESET HI SCORE? / CLICK=YES     |
-        | if PLAY and score changed: redraw number |
-        | if PLAY and lives changed: redraw hearts |
-        +------------------------------------------+
-```
-
-### Task 6 - LEDs (period 150 ms)
-Local variable: `blink:uchar`
-
-```
-        +-------------------------------+
-   ---> |            LED_RUN            |
-        | if gameState==ST_PLAY:        |
-        |   locked  -> green on, red off|
-        |   unlocked-> green off,        |
-        |              red blinks        |
-        | else -> both LEDs off          |
-        +-------------------------------+
-```
+![T6 LEDs SynchSM](sm_led.png)
