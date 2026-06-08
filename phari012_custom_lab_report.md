@@ -26,7 +26,7 @@ the score, the remaining lives (drawn as heart sprites), and the game messages
 
 **Successfully completed:** full core gameplay, two-axis servo turret, lock LEDs,
 score, five-life system with heart sprites, endless targets, EEPROM high score,
-start / game-over / reset screens, and a press-and-hold gesture to reset the high
+start / game-over / reset screens, and a click-to-reset gesture for the high
 score. The whole program is built as Concurrent SynchSMs driven by a task
 scheduler.
 
@@ -39,8 +39,8 @@ scheduler.
 
 - **EEPROM-backed high score (implemented).** The all-time high score is read from
   EEPROM at power-up and written back whenever it is beaten, so it persists across
-  power cycles. A 3-second button hold on the game-over screen opens a
-  confirmation prompt to wipe it.
+  power cycles. A single click on the game-over screen opens a confirmation
+  prompt to wipe it.
 - **Custom bare-metal ST7735 TFT driver, no libraries (implemented).** A hand-written
   driver brings up the color TFT (reset, sleep-out, gamma, 16-bit color) and draws
   filled rectangles, a 5x7 text font, centered text, and a heart sprite. It shares
@@ -51,8 +51,8 @@ scheduler.
   self-heals.
 - **Two-axis servo turret (implemented).** Two servos track the aim in X and Y,
   driven by Timer1 in the background so motion stays smooth while the game runs.
-- **Press-and-hold reset gesture (implemented).** On the game-over screen, holding the
-  button for 3 seconds opens a confirmation prompt to safely reset the high score.
+- **Click-to-reset gesture (implemented).** On the game-over screen, a single click
+  opens a confirmation prompt to safely reset the high score; a double click starts a new game.
 
 ---
 
@@ -64,10 +64,9 @@ scheduler.
 - **Joystick button - single click:**
   - on the *Start* screen: begins a game.
   - during *play*: fires at the current aim position.
+  - on the *Game Over* screen: opens the "Reset High Score?" prompt.
   - on the *Reset* prompt: confirms wiping the high score.
-- **Joystick button - double click** (Game Over screen): restarts to the Start screen.
-- **Joystick button - hold 3 seconds** (Game Over screen only): opens the
-  "Reset High Score?" prompt.
+- **Joystick button - double click** (Game Over screen): starts a new game.
 
 **Visual / physical outputs**
 - **LED matrix:** the playfield - walls, the 2x2 target, and the aim dot.
@@ -147,14 +146,14 @@ The two servos are generated independently by Timer1 in the background.
                          SHARED VARIABLES (globals)
    gameState:uchar  aimX,aimY:uchar  targetX,targetY:uchar  score:uint
    lives:uchar  highScore:uint  lockedOn:uchar  firePressed:uchar
-   holdMs:uint  clickDone:uchar  fineX,fineY:int  randomState:uint
+   clickDone:uchar  fineX,fineY:int  randomState:uint
    (no queues are used)
 
    INPUTS                                                     OUTPUTS
    ADC0/ADC1 (A0/A1) --> [ T1: Joystick  20ms ] --> fineX,fineY,aimX,aimY,
-   button (D2) ------->                              firePressed, holdMs, clickDone
+   button (D2) ------->                              firePressed, clickDone
 
-   firePressed,holdMs,    --> [ T2: Game     20ms ] --> score, lives, highScore,
+   firePressed,clickDone -->[ T2: Game     20ms ] --> score, lives, highScore,
    aimX,aimY,score,lives                                lockedOn, targetX/Y,
                                                         gameState, EEPROM(highScore)
 
@@ -185,8 +184,7 @@ Local variables: none (button state is kept in the shared variables)
         | read ADC0/ADC1 -> fineX/Y  |
         | clamp -> aimX/aimY         |
         | button edge -> firePressed |
-        | track hold time -> holdMs  |
-        | short tap -> clickDone     |
+        | debounced tap -> clickDone |
         +----------------------------+
 ```
 
@@ -198,17 +196,17 @@ Local variables: `resetTimer:uint`, `overSettle:uint`, `overClicks:uchar`, `over
    | ST_START | -------> | ST_PLAY | -----------------> | ST_OVER  |
    +----------+          +---------+  (save high score) +----------+
                           hit: +100, new target
-   ST_OVER, double tap  -> ST_START   (restart)
-   ST_OVER, hold 3s    -> ST_RESET   (wipe high score)
-   ST_RESET, tap        -> ST_START   (confirm); wait 4s -> ST_START (cancel)
+   ST_OVER, single click -> ST_RESET   (reset high-score prompt)
+   ST_OVER, double click -> ST_START   (start a new game)
+   ST_RESET, tap         -> ST_START   (confirm wipe); wait 4s -> ST_START (cancel)
    (ST_OVER ignores input for the first 600 ms to drop the fatal shot)
 ```
 Transitions in words:
 - ST_START: a tap starts a new game (ST_PLAY). Reset is not reachable from here.
 - ST_PLAY: on fire, if locked -> +100 and respawn; if miss -> lose a life; at 0
   lives, save the high score to EEPROM and go to ST_OVER.
-- ST_OVER: ignore input for 600 ms; then a double tap -> ST_START (restart), or a
-  3-second hold -> ST_RESET.
+- ST_OVER: ignore input for 600 ms; then a single click -> ST_RESET (reset prompt),
+  or a double click -> ST_START (new game).
 - ST_RESET: a tap -> set highScore=0, write EEPROM, go ST_START; no tap for 4 s
   -> cancel to ST_START.
 

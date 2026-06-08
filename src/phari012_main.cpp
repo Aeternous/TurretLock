@@ -50,8 +50,7 @@
 // Game settings
 #define LIVES_START   5
 #define POINTS        100
-#define HOLD_RESET_MS 3000  // hold the button this long to open the reset prompt
-#define DBL_WINDOW    400   // ms window for a double-tap restart on game over
+#define DBL_WINDOW    400   // ms window to tell a single click from a double click
 
 // Where the high score lives in EEPROM
 #define EE_HIGH  ((uint16_t*)0)
@@ -85,8 +84,7 @@ unsigned char lives = LIVES_START;
 unsigned int  highScore = 0;
 unsigned char lockedOn = 0;
 unsigned char firePressed = 0;   // press edge, used for shooting
-unsigned int  holdMs = 0;        // how long the button has been held, in ms
-unsigned char clickDone = 0;     // a short tap finished (used by start/game over)
+unsigned char clickDone = 0;     // a tap finished (used by start and game over)
 unsigned char buttonLast = 1;
 unsigned int  randomState = 0xACE1;
 
@@ -226,25 +224,20 @@ int TickJoystick(int state) {
   aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);
   aimY = (unsigned char)(fineY / FINE);
 
-  // Button: a press edge fires instantly; we also time how long it is held. The
-  // release is debounced (must read released for ~40 ms) so a noisy contact can't
-  // cut a long hold short. A short tap sets clickDone; a long hold grows holdMs.
+  // Button: a press edge fires instantly. The release is debounced (must read
+  // released for ~40 ms) so a noisy contact still registers one clean tap.
   static unsigned char releaseCount = 0;
   unsigned char b = (PIND >> BUTTON) & 1;   // 1 released, 0 pressed
   if (b == 0) {                             // pressed
     if (buttonLast == 1) {
       firePressed = 1;                      // press edge
     }
-    holdMs += PERIOD_JOY;
     buttonLast = 0;
     releaseCount = 0;
   } else if (buttonLast == 0) {             // looks released - confirm it
     releaseCount++;
     if (releaseCount >= 2) {
-      if (holdMs < HOLD_RESET_MS) {
-        clickDone = 1;                      // a short tap finished
-      }
-      holdMs = 0;
+      clickDone = 1;                        // a tap finished
       buttonLast = 1;
     }
   }
@@ -252,8 +245,8 @@ int TickJoystick(int state) {
 }
 
 // Task 2: the game state machine (start -> play -> game over, + reset prompt).
-// Start: a tap starts a game. Game over: a double tap restarts, a 3s hold opens
-// the reset prompt. Play uses the raw button edge so shooting stays instant.
+// Start: a tap starts a game. Game over: a single click opens the reset prompt,
+// a double click starts a new game. Play uses the raw edge so shooting is instant.
 int TickGame(int state) {
   static unsigned int  resetTimer = 0;
   static unsigned int  overSettle = 0;
@@ -299,24 +292,21 @@ int TickGame(int state) {
         overSettle += PERIOD_GAME;     // ignore the fatal shot for a moment
         clickDone = 0;
         overClicks = 0;
-      } else if (holdMs >= HOLD_RESET_MS) {   // long hold -> reset prompt
-        clickDone = 0;
-        overClicks = 0;
-        resetTimer = 0;
-        state = ST_RESET;
       } else {
-        if (clickDone) {               // collect taps for a double-tap restart
+        if (clickDone) {               // count taps to tell single from double
           clickDone = 0;
           overClicks++;
           overClickTimer = 0;
         }
         if (overClicks > 0) {
           overClickTimer += PERIOD_GAME;
-          if (overClicks >= 2) {       // double tap -> restart
+          if (overClicks >= 2) {       // double click -> new game
             overClicks = 0;
             state = ST_START;
           } else if (overClickTimer >= DBL_WINDOW) {
-            overClicks = 0;            // lone tap, ignore
+            overClicks = 0;            // single click -> reset prompt
+            resetTimer = 0;
+            state = ST_RESET;
           }
         }
       }
@@ -399,7 +389,9 @@ int TickHUD(int state) {
       prevScore = 0xFFFF;   // force the score and hearts to draw below
       prevLives = 0xFF;
     } else if (gameState == ST_OVER) {
-      tft_draw_text_centered(10, "GAME OVER", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(6, "GAME OVER", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(30, "1 CLICK=RESET HI", TFT_YELLOW, TFT_BLACK, 1);
+      tft_draw_text_centered(42, "2 CLICK=PLAY", TFT_CYAN, TFT_BLACK, 1);
       // Show the player's final score in the middle if they didn't beat the record
       if (score < highScore) {
         char sline[16];
@@ -416,13 +408,11 @@ int TickHUD(int state) {
           sline[p++] = num[q++];
         }
         sline[p] = '\0';
-        tft_draw_text_centered(52, sline, TFT_WHITE, TFT_BLACK, 2);
+        tft_draw_text_centered(64, sline, TFT_WHITE, TFT_BLACK, 2);
       }
-      tft_draw_text_centered(88, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
+      tft_draw_text_centered(94, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
       numberToText(highScore, text);
-      tft_draw_text_centered(110, text, TFT_YELLOW, TFT_BLACK, 3);
-      tft_draw_text_centered(143, "DBL CLICK = PLAY", TFT_CYAN, TFT_BLACK, 1);
-      tft_draw_text_centered(153, "HOLD = RESET HI", TFT_YELLOW, TFT_BLACK, 1);
+      tft_draw_text_centered(116, text, TFT_YELLOW, TFT_BLACK, 3);
     } else if (gameState == ST_RESET) {
       tft_draw_text_centered(35, "RESET", TFT_RED, TFT_BLACK, 2);
       tft_draw_text_centered(60, "HI SCORE?", TFT_RED, TFT_BLACK, 2);
