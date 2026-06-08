@@ -379,19 +379,19 @@ int TickHUD(int state) {
   if (gameState != prevState) {
     tft_fill_screen(TFT_BLACK);
     if (gameState == ST_START) {
-      tft_draw_text_centered(45, "PLAY GAME", TFT_WHITE, TFT_BLACK, 2);
-      tft_draw_text_centered(75, "PRESS START", TFT_CYAN, TFT_BLACK, 2);
-      //tft_draw_text_centered(120, "HI", TFT_YELLOW, TFT_BLACK, 1);
+      tft_draw_text_centered(30, "PLAY GAME", TFT_WHITE, TFT_BLACK, 2);
+      tft_draw_text_centered(60, "PRESS START", TFT_CYAN, TFT_BLACK, 2);
+      tft_draw_text_centered(92, "HI", TFT_YELLOW, TFT_BLACK, 1);
       numberToText(highScore, text);
-      tft_draw_text_centered(135, text, TFT_YELLOW, TFT_BLACK, 2);
+      tft_draw_text_centered(104, text, TFT_YELLOW, TFT_BLACK, 2);
     } else if (gameState == ST_PLAY) {
       tft_draw_text_centered(6, "SCORE", TFT_WHITE, TFT_BLACK, 1);
       prevScore = 0xFFFF;   // force the score and hearts to draw below
       prevLives = 0xFF;
     } else if (gameState == ST_OVER) {
-      tft_draw_text_centered(6, "GAME OVER", TFT_RED, TFT_BLACK, 2);
-      tft_draw_text_centered(30, "1 CLICK=RESET HI", TFT_YELLOW, TFT_BLACK, 1);
-      tft_draw_text_centered(42, "2 CLICK=PLAY", TFT_CYAN, TFT_BLACK, 1);
+      tft_draw_text_centered(4, "GAME OVER", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(24, "1 CLICK=RESET HI", TFT_YELLOW, TFT_BLACK, 1);
+      tft_draw_text_centered(35, "2 CLICK=PLAY", TFT_CYAN, TFT_BLACK, 1);
       // Show the player's final score in the middle if they didn't beat the record
       if (score < highScore) {
         char sline[16];
@@ -408,16 +408,16 @@ int TickHUD(int state) {
           sline[p++] = num[q++];
         }
         sline[p] = '\0';
-        tft_draw_text_centered(64, sline, TFT_WHITE, TFT_BLACK, 2);
+        tft_draw_text_centered(56, sline, TFT_WHITE, TFT_BLACK, 2);
       }
-      tft_draw_text_centered(94, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
+      tft_draw_text_centered(80, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
       numberToText(highScore, text);
-      tft_draw_text_centered(116, text, TFT_YELLOW, TFT_BLACK, 3);
+      tft_draw_text_centered(100, text, TFT_YELLOW, TFT_BLACK, 3);
     } else if (gameState == ST_RESET) {
-      tft_draw_text_centered(35, "RESET", TFT_RED, TFT_BLACK, 2);
-      tft_draw_text_centered(60, "HI SCORE?", TFT_RED, TFT_BLACK, 2);
-      tft_draw_text_centered(105, "CLICK = YES", TFT_WHITE, TFT_BLACK, 1);
-      tft_draw_text_centered(125, "WAIT = NO", TFT_CYAN, TFT_BLACK, 1);
+      tft_draw_text_centered(20, "RESET", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(45, "HI SCORE?", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(85, "CLICK = YES", TFT_WHITE, TFT_BLACK, 1);
+      tft_draw_text_centered(103, "WAIT = NO", TFT_CYAN, TFT_BLACK, 1);
     }
     prevState = gameState;
   }
