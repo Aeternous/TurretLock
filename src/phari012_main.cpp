@@ -51,6 +51,7 @@
 #define LIVES_START   5
 #define POINTS        100
 #define HOLD_RESET_MS 10000 // hold the button this long to open the reset prompt
+#define DBL_WINDOW    400   // ms window for a double-tap restart on game over
 
 // Where the high score lives in EEPROM
 #define EE_HIGH  ((uint16_t*)0)
@@ -244,19 +245,17 @@ int TickJoystick(int state) {
 }
 
 // Task 2: the game state machine (start -> play -> game over, + reset prompt).
-// Start and game-over: a tap goes, a 10s hold opens the reset prompt; play uses
-// the raw button edge so shooting stays instant.
+// Start: a tap starts a game. Game over: a double tap restarts, a 10s hold opens
+// the reset prompt. Play uses the raw button edge so shooting stays instant.
 int TickGame(int state) {
-  static unsigned int resetTimer = 0;
-  static unsigned int overSettle = 0;
+  static unsigned int  resetTimer = 0;
+  static unsigned int  overSettle = 0;
+  static unsigned char overClicks = 0;
+  static unsigned int  overClickTimer = 0;
   switch (state) {
     case ST_START:
       firePressed = 0;
-      if (holdMs >= HOLD_RESET_MS) {   // long hold -> reset prompt
-        clickDone = 0;
-        resetTimer = 0;
-        state = ST_RESET;
-      } else if (clickDone) {          // quick tap -> start
+      if (clickDone) {                 // a tap starts a game (no reset from here)
         clickDone = 0;
         startNewGame();
         state = ST_PLAY;
@@ -292,13 +291,27 @@ int TickGame(int state) {
       if (overSettle < 600) {
         overSettle += PERIOD_GAME;     // ignore the fatal shot for a moment
         clickDone = 0;
+        overClicks = 0;
       } else if (holdMs >= HOLD_RESET_MS) {   // long hold -> reset prompt
         clickDone = 0;
+        overClicks = 0;
         resetTimer = 0;
         state = ST_RESET;
-      } else if (clickDone) {          // quick tap -> back to start
-        clickDone = 0;
-        state = ST_START;
+      } else {
+        if (clickDone) {               // collect taps for a double-tap restart
+          clickDone = 0;
+          overClicks++;
+          overClickTimer = 0;
+        }
+        if (overClicks > 0) {
+          overClickTimer += PERIOD_GAME;
+          if (overClicks >= 2) {       // double tap -> restart
+            overClicks = 0;
+            state = ST_START;
+          } else if (overClickTimer >= DBL_WINDOW) {
+            overClicks = 0;            // lone tap, ignore
+          }
+        }
       }
       break;
 
@@ -401,7 +414,8 @@ int TickHUD(int state) {
       tft_draw_text_centered(88, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
       numberToText(highScore, text);
       tft_draw_text_centered(110, text, TFT_YELLOW, TFT_BLACK, 3);
-      tft_draw_text_centered(150, "PRESS START", TFT_CYAN, TFT_BLACK, 1);
+      tft_draw_text_centered(143, "DBL CLICK = PLAY", TFT_CYAN, TFT_BLACK, 1);
+      tft_draw_text_centered(153, "HOLD = RESET HI", TFT_YELLOW, TFT_BLACK, 1);
     } else if (gameState == ST_RESET) {
       tft_draw_text_centered(35, "RESET", TFT_RED, TFT_BLACK, 2);
       tft_draw_text_centered(60, "HI SCORE?", TFT_RED, TFT_BLACK, 2);

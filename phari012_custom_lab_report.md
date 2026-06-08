@@ -39,7 +39,7 @@ scheduler.
 
 - **EEPROM-backed high score (implemented).** The all-time high score is read from
   EEPROM at power-up and written back whenever it is beaten, so it persists across
-  power cycles. A triple-click gesture on the start/game-over screens opens a
+  power cycles. A 10-second button hold on the game-over screen opens a
   confirmation prompt to wipe it.
 - **Custom bare-metal ST7735 TFT driver, no libraries (implemented).** A hand-written
   driver brings up the color TFT (reset, sleep-out, gamma, 16-bit color) and draws
@@ -51,8 +51,8 @@ scheduler.
   self-heals.
 - **Two-axis servo turret (implemented).** Two servos track the aim in X and Y,
   driven by Timer1 in the background so motion stays smooth while the game runs.
-- **Press-and-hold reset gesture (implemented).** The button's hold time is measured;
-  a 10-second hold opens a confirmation prompt to safely reset the high score.
+- **Press-and-hold reset gesture (implemented).** On the game-over screen, holding the
+  button for 10 seconds opens a confirmation prompt to safely reset the high score.
 
 ---
 
@@ -64,9 +64,9 @@ scheduler.
 - **Joystick button - single click:**
   - on the *Start* screen: begins a game.
   - during *play*: fires at the current aim position.
-  - on the *Game Over* screen: returns to the Start screen.
   - on the *Reset* prompt: confirms wiping the high score.
-- **Joystick button - hold 10 seconds** (Start or Game Over only): opens the
+- **Joystick button - double click** (Game Over screen): restarts to the Start screen.
+- **Joystick button - hold 10 seconds** (Game Over screen only): opens the
   "Reset High Score?" prompt.
 
 **Visual / physical outputs**
@@ -191,34 +191,27 @@ Local variables: none (button state is kept in the shared variables)
 ```
 
 ### Task 2 - Game (period 20 ms)
-Local variables: `resetTimer:uint`, `overSettle:uint`
+Local variables: `resetTimer:uint`, `overSettle:uint`, `overClicks:uchar`, `overClickTimer:uint`
 
 ```
-                 tap
-   +---------+ ---------------------> +---------+
-   |ST_START |                        | ST_PLAY |
-   |         | <----------------+     |         |
-   +---------+   tap  |     +---------+
-     |  ^       (from ST_OVER)  |       |   |
-     |  |                       |       |   | hit target: score+=100, newTarget
-     |  | tap         |       |   | miss: lives--; if lives==0 ->
-     |  | or 4s timeout         |       |   |   save high score, go ST_OVER
-     v  |                       |       v   v
-   +---------+  hold 10s   |     +---------+
-   |ST_RESET | <----------------+-----| ST_OVER |
-   | wipe    |   hold 10s        | (settle |
-   | high    |                        |  600ms  |
-   | score   |                        |  first) |
-   +---------+                        +---------+
+   +----------+   tap    +---------+   miss & 0 lives   +----------+
+   | ST_START | -------> | ST_PLAY | -----------------> | ST_OVER  |
+   +----------+          +---------+  (save high score) +----------+
+                          hit: +100, new target
+   ST_OVER, double tap  -> ST_START   (restart)
+   ST_OVER, hold 10s    -> ST_RESET   (wipe high score)
+   ST_RESET, tap        -> ST_START   (confirm); wait 4s -> ST_START (cancel)
+   (ST_OVER ignores input for the first 600 ms to drop the fatal shot)
 ```
 Transitions in words:
-- ST_START: quick tap -> start a new game (ST_PLAY); 10-second hold -> ST_RESET.
+- ST_START: a tap starts a new game (ST_PLAY). Reset is not reachable from here.
 - ST_PLAY: on fire, if locked -> +100 and respawn; if miss -> lose a life; at 0
   lives, save the high score to EEPROM and go to ST_OVER.
-- ST_OVER: ignore input for 600 ms (so the fatal shot is not re-read); then a quick
-  tap -> ST_START, a 10-second hold -> ST_RESET.
+- ST_OVER: ignore input for 600 ms; then a double tap -> ST_START (restart), or a
+  10-second hold -> ST_RESET.
 - ST_RESET: a tap -> set highScore=0, write EEPROM, go ST_START; no tap for 4 s
   -> cancel to ST_START.
+
 
 ### Task 3 - Matrix (period 30 ms)
 Local variable: `grid[8][4]:uchar`
