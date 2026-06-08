@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-// ST7735 1.8" 128x160 TFT. Pins: CS=D9, DC=D8, RST=D7, SDA=D11, SCK=D13.
+// ST7735 1.44" 128x128 TFT. Pins: CS=D9, DC=D8, RST=D7, SDA=D11, SCK=D13.
 // SDA/SCK are shared with the matrix; each chip has its own CS.
 
 #define TFT_W 128

@@ -224,8 +224,7 @@ int TickJoystick(int state) {
   aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);
   aimY = (unsigned char)(fineY / FINE);
 
-  // Button: a press edge fires instantly. The release is debounced (must read
-  // released for ~40 ms) so a noisy contact still registers one clean tap.
+  // Button: press edge fires instantly; release is debounced (~40 ms) into one tap.
   static unsigned char releaseCount = 0;
   unsigned char b = (PIND >> BUTTON) & 1;   // 1 released, 0 pressed
   if (b == 0) {                             // pressed
