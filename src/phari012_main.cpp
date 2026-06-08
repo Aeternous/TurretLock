@@ -50,7 +50,7 @@
 // Game settings
 #define LIVES_START   5
 #define POINTS        100
-#define HOLD_RESET_MS 10000 // hold the button this long to open the reset prompt
+#define HOLD_RESET_MS 3000  // hold the button this long to open the reset prompt
 #define DBL_WINDOW    400   // ms window for a double-tap restart on game over
 
 // Where the high score lives in EEPROM
@@ -226,26 +226,33 @@ int TickJoystick(int state) {
   aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);
   aimY = (unsigned char)(fineY / FINE);
 
-  // Button: press edge fires shots; hold time lets start/game-over tell a quick
-  // tap (go) from a 10-second hold (open the reset prompt).
+  // Button: a press edge fires instantly; we also time how long it is held. The
+  // release is debounced (must read released for ~40 ms) so a noisy contact can't
+  // cut a long hold short. A short tap sets clickDone; a long hold grows holdMs.
+  static unsigned char releaseCount = 0;
   unsigned char b = (PIND >> BUTTON) & 1;   // 1 released, 0 pressed
-  if (b == 0) {                             // held down
+  if (b == 0) {                             // pressed
     if (buttonLast == 1) {
       firePressed = 1;                      // press edge
     }
     holdMs += PERIOD_JOY;
-  } else {                                  // released
-    if (buttonLast == 0 && holdMs < HOLD_RESET_MS) {
-      clickDone = 1;                        // a short tap finished
+    buttonLast = 0;
+    releaseCount = 0;
+  } else if (buttonLast == 0) {             // looks released - confirm it
+    releaseCount++;
+    if (releaseCount >= 2) {
+      if (holdMs < HOLD_RESET_MS) {
+        clickDone = 1;                      // a short tap finished
+      }
+      holdMs = 0;
+      buttonLast = 1;
     }
-    holdMs = 0;
   }
-  buttonLast = b;
   return state;
 }
 
 // Task 2: the game state machine (start -> play -> game over, + reset prompt).
-// Start: a tap starts a game. Game over: a double tap restarts, a 10s hold opens
+// Start: a tap starts a game. Game over: a double tap restarts, a 3s hold opens
 // the reset prompt. Play uses the raw button edge so shooting stays instant.
 int TickGame(int state) {
   static unsigned int  resetTimer = 0;

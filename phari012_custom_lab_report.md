@@ -39,7 +39,7 @@ scheduler.
 
 - **EEPROM-backed high score (implemented).** The all-time high score is read from
   EEPROM at power-up and written back whenever it is beaten, so it persists across
-  power cycles. A 10-second button hold on the game-over screen opens a
+  power cycles. A 3-second button hold on the game-over screen opens a
   confirmation prompt to wipe it.
 - **Custom bare-metal ST7735 TFT driver, no libraries (implemented).** A hand-written
   driver brings up the color TFT (reset, sleep-out, gamma, 16-bit color) and draws
@@ -52,7 +52,7 @@ scheduler.
 - **Two-axis servo turret (implemented).** Two servos track the aim in X and Y,
   driven by Timer1 in the background so motion stays smooth while the game runs.
 - **Press-and-hold reset gesture (implemented).** On the game-over screen, holding the
-  button for 10 seconds opens a confirmation prompt to safely reset the high score.
+  button for 3 seconds opens a confirmation prompt to safely reset the high score.
 
 ---
 
@@ -66,7 +66,7 @@ scheduler.
   - during *play*: fires at the current aim position.
   - on the *Reset* prompt: confirms wiping the high score.
 - **Joystick button - double click** (Game Over screen): restarts to the Start screen.
-- **Joystick button - hold 10 seconds** (Game Over screen only): opens the
+- **Joystick button - hold 3 seconds** (Game Over screen only): opens the
   "Reset High Score?" prompt.
 
 **Visual / physical outputs**
@@ -199,7 +199,7 @@ Local variables: `resetTimer:uint`, `overSettle:uint`, `overClicks:uchar`, `over
    +----------+          +---------+  (save high score) +----------+
                           hit: +100, new target
    ST_OVER, double tap  -> ST_START   (restart)
-   ST_OVER, hold 10s    -> ST_RESET   (wipe high score)
+   ST_OVER, hold 3s    -> ST_RESET   (wipe high score)
    ST_RESET, tap        -> ST_START   (confirm); wait 4s -> ST_START (cancel)
    (ST_OVER ignores input for the first 600 ms to drop the fatal shot)
 ```
@@ -208,7 +208,7 @@ Transitions in words:
 - ST_PLAY: on fire, if locked -> +100 and respawn; if miss -> lose a life; at 0
   lives, save the high score to EEPROM and go to ST_OVER.
 - ST_OVER: ignore input for 600 ms; then a double tap -> ST_START (restart), or a
-  10-second hold -> ST_RESET.
+  3-second hold -> ST_RESET.
 - ST_RESET: a tap -> set highScore=0, write EEPROM, go ST_START; no tap for 4 s
   -> cancel to ST_START.
 
