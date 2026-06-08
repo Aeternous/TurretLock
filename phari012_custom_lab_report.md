@@ -26,14 +26,12 @@ the score, the remaining lives (drawn as heart sprites), and the game messages
 
 **Successfully completed:** full core gameplay, two-axis servo turret, lock LEDs,
 score, five-life system with heart sprites, endless targets, EEPROM high score,
-start / game-over / reset screens, and a triple-click gesture to reset the high
+start / game-over / reset screens, and a press-and-hold gesture to reset the high
 score. The whole program is built as Concurrent SynchSMs driven by a task
 scheduler.
 
 **Known limitations:** the joystick is spring-loaded, so the aim is velocity-based
-(push to glide, release to hold) rather than absolute. On the start and game-over
-screens a single button press is acknowledged after a short (~0.4 s) delay because
-the firmware waits to see whether the press is part of a triple-click.
+(push to glide, release to hold) rather than absolute.
 
 ---
 
@@ -53,8 +51,8 @@ the firmware waits to see whether the press is part of a triple-click.
   self-heals.
 - **Two-axis servo turret (implemented).** Two servos track the aim in X and Y,
   driven by Timer1 in the background so motion stays smooth while the game runs.
-- **Triple-click reset gesture (implemented).** A click-burst detector distinguishes
-  single, double, and triple clicks, used to safely reset the high score.
+- **Press-and-hold reset gesture (implemented).** The button's hold time is measured;
+  a 10-second hold opens a confirmation prompt to safely reset the high score.
 
 ---
 
@@ -68,7 +66,7 @@ the firmware waits to see whether the press is part of a triple-click.
   - during *play*: fires at the current aim position.
   - on the *Game Over* screen: returns to the Start screen.
   - on the *Reset* prompt: confirms wiping the high score.
-- **Joystick button - triple click** (Start or Game Over only): opens the
+- **Joystick button - hold 10 seconds** (Start or Game Over only): opens the
   "Reset High Score?" prompt.
 
 **Visual / physical outputs**
@@ -149,14 +147,14 @@ The two servos are generated independently by Timer1 in the background.
                          SHARED VARIABLES (globals)
    gameState:uchar  aimX,aimY:uchar  targetX,targetY:uchar  score:uint
    lives:uchar  highScore:uint  lockedOn:uchar  firePressed:uchar
-   clickEvent:uchar  fineX,fineY:int  randomState:uint
+   holdMs:uint  clickDone:uchar  fineX,fineY:int  randomState:uint
    (no queues are used)
 
    INPUTS                                                     OUTPUTS
    ADC0/ADC1 (A0/A1) --> [ T1: Joystick  20ms ] --> fineX,fineY,aimX,aimY,
-   button (D2) ------->                              firePressed, clickEvent
+   button (D2) ------->                              firePressed, holdMs, clickDone
 
-   firePressed,clickEvent --> [ T2: Game     20ms ] --> score, lives, highScore,
+   firePressed,holdMs,    --> [ T2: Game     20ms ] --> score, lives, highScore,
    aimX,aimY,score,lives                                lockedOn, targetX/Y,
                                                         gameState, EEPROM(highScore)
 
@@ -187,9 +185,8 @@ Local variables: `clickCount:uchar`, `clickTimer:uint`
         | read ADC0/ADC1 -> fineX/Y  |
         | clamp -> aimX/aimY         |
         | button edge -> firePressed |
-        | count clicks; after a      |
-        | CLICK_WINDOW gap set        |
-        | clickEvent = #clicks        |
+        | track hold time -> holdMs  |
+        | short tap -> clickDone     |
         +----------------------------+
 ```
 
@@ -197,31 +194,31 @@ Local variables: `clickCount:uchar`, `clickTimer:uint`
 Local variables: `resetTimer:uint`, `overSettle:uint`
 
 ```
-                 clickEvent>=1
+                 tap
    +---------+ ---------------------> +---------+
    |ST_START |                        | ST_PLAY |
    |         | <----------------+     |         |
-   +---------+   clickEvent>=1  |     +---------+
+   +---------+   tap  |     +---------+
      |  ^       (from ST_OVER)  |       |   |
      |  |                       |       |   | hit target: score+=100, newTarget
-     |  | clickEvent>=1         |       |   | miss: lives--; if lives==0 ->
+     |  | tap         |       |   | miss: lives--; if lives==0 ->
      |  | or 4s timeout         |       |   |   save high score, go ST_OVER
      v  |                       |       v   v
-   +---------+  clickEvent>=3   |     +---------+
+   +---------+  hold 10s   |     +---------+
    |ST_RESET | <----------------+-----| ST_OVER |
-   | wipe    |   clickEvent>=3        | (settle |
+   | wipe    |   hold 10s        | (settle |
    | high    |                        |  600ms  |
    | score   |                        |  first) |
    +---------+                        +---------+
 ```
 Transitions in words:
-- ST_START: single click -> start a new game (ST_PLAY); triple click -> ST_RESET.
+- ST_START: quick tap -> start a new game (ST_PLAY); 10-second hold -> ST_RESET.
 - ST_PLAY: on fire, if locked -> +100 and respawn; if miss -> lose a life; at 0
   lives, save the high score to EEPROM and go to ST_OVER.
-- ST_OVER: ignore input for 600 ms (so the fatal shot is not re-read); then single
-  click -> ST_START, triple click -> ST_RESET.
-- ST_RESET: single click -> set highScore=0, write EEPROM, go ST_START; no input
-  for 4 s -> cancel to ST_START.
+- ST_OVER: ignore input for 600 ms (so the fatal shot is not re-read); then a quick
+  tap -> ST_START, a 10-second hold -> ST_RESET.
+- ST_RESET: a tap -> set highScore=0, write EEPROM, go ST_START; no tap for 4 s
+  -> cancel to ST_START.
 
 ### Task 3 - Matrix (period 30 ms)
 Local variable: `grid[8][4]:uchar`

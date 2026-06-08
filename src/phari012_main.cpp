@@ -50,7 +50,7 @@
 // Game settings
 #define LIVES_START   5
 #define POINTS        100
-#define CLICK_WINDOW  400   // ms gap that ends a click burst (for triple-click)
+#define HOLD_RESET_MS 10000 // hold the button this long to open the reset prompt
 
 // Where the high score lives in EEPROM
 #define EE_HIGH  ((uint16_t*)0)
@@ -83,8 +83,9 @@ unsigned int  score = 0;
 unsigned char lives = LIVES_START;
 unsigned int  highScore = 0;
 unsigned char lockedOn = 0;
-unsigned char firePressed = 0;   // set by the joystick task on a button press
-unsigned char clickEvent = 0;    // finished click burst: 1 = single, 3+ = triple
+unsigned char firePressed = 0;   // press edge, used for shooting
+unsigned int  holdMs = 0;        // how long the button has been held, in ms
+unsigned char clickDone = 0;     // a short tap finished (used by start/game over)
 unsigned char buttonLast = 1;
 unsigned int  randomState = 0xACE1;
 
@@ -224,51 +225,46 @@ int TickJoystick(int state) {
   aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);
   aimY = (unsigned char)(fineY / FINE);
 
-  // Button: immediate edge for shooting, plus a click-burst counter so the
-  // start and game-over screens can tell a single click from a triple click.
-  static unsigned char clickCount = 0;
-  static unsigned int  clickTimer = 0;
+  // Button: press edge fires shots; hold time lets start/game-over tell a quick
+  // tap (go) from a 10-second hold (open the reset prompt).
   unsigned char b = (PIND >> BUTTON) & 1;   // 1 released, 0 pressed
-  if (buttonLast == 1 && b == 0) {
-    firePressed = 1;
-    clickCount++;
-    clickTimer = 0;
+  if (b == 0) {                             // held down
+    if (buttonLast == 1) {
+      firePressed = 1;                      // press edge
+    }
+    holdMs += PERIOD_JOY;
+  } else {                                  // released
+    if (buttonLast == 0 && holdMs < HOLD_RESET_MS) {
+      clickDone = 1;                        // a short tap finished
+    }
+    holdMs = 0;
   }
   buttonLast = b;
-
-  // A quiet gap ends the burst; report how many clicks it held
-  if (clickCount > 0) {
-    clickTimer += PERIOD_JOY;
-    if (clickTimer >= CLICK_WINDOW) {
-      clickEvent = clickCount;
-      clickCount = 0;
-    }
-  }
   return state;
 }
 
 // Task 2: the game state machine (start -> play -> game over, + reset prompt).
-// Start and game-over read click bursts (single = go, triple = reset prompt);
-// play reads the raw button edge so shooting stays instant.
+// Start and game-over: a tap goes, a 10s hold opens the reset prompt; play uses
+// the raw button edge so shooting stays instant.
 int TickGame(int state) {
   static unsigned int resetTimer = 0;
   static unsigned int overSettle = 0;
   switch (state) {
     case ST_START:
       firePressed = 0;
-      if (clickEvent >= 3) {
-        clickEvent = 0;
+      if (holdMs >= HOLD_RESET_MS) {   // long hold -> reset prompt
+        clickDone = 0;
         resetTimer = 0;
         state = ST_RESET;
-      } else if (clickEvent >= 1) {
-        clickEvent = 0;
+      } else if (clickDone) {          // quick tap -> start
+        clickDone = 0;
         startNewGame();
         state = ST_PLAY;
       }
       break;
 
     case ST_PLAY:
-      clickEvent = 0;                  // ignore click bursts while playing
+      clickDone = 0;                   // taps don't matter while playing
       lockedOn = checkLock();
       if (firePressed) {
         firePressed = 0;
@@ -294,14 +290,14 @@ int TickGame(int state) {
     case ST_OVER:
       firePressed = 0;
       if (overSettle < 600) {
-        overSettle += PERIOD_GAME;     // ignore the fatal shot's lingering burst
-        clickEvent = 0;
-      } else if (clickEvent >= 3) {
-        clickEvent = 0;
+        overSettle += PERIOD_GAME;     // ignore the fatal shot for a moment
+        clickDone = 0;
+      } else if (holdMs >= HOLD_RESET_MS) {   // long hold -> reset prompt
+        clickDone = 0;
         resetTimer = 0;
         state = ST_RESET;
-      } else if (clickEvent >= 1) {
-        clickEvent = 0;
+      } else if (clickDone) {          // quick tap -> back to start
+        clickDone = 0;
         state = ST_START;
       }
       break;
@@ -309,12 +305,12 @@ int TickGame(int state) {
     case ST_RESET:
       firePressed = 0;
       resetTimer += PERIOD_GAME;
-      if (clickEvent >= 1) {           // a click confirms the wipe
-        clickEvent = 0;
+      if (clickDone) {                 // a tap confirms the wipe
+        clickDone = 0;
         highScore = 0;
         eeprom_update_word(EE_HIGH, 0);
         state = ST_START;
-      } else if (resetTimer >= 4000) { // no click for 4s = cancel
+      } else if (resetTimer >= 4000) { // no tap for 4s = cancel
         state = ST_START;
       }
       break;
