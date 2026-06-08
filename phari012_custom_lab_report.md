@@ -177,7 +177,7 @@ Notation: each box is a state; arrows are transitions with their conditions.
 "Period" is the task's tick period.
 
 ### Task 1 - Joystick (period 20 ms)
-Local variables: `clickCount:uchar`, `clickTimer:uint`
+Local variables: none (button state is kept in the shared variables)
 
 ```
         +----------------------------+
