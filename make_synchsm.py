@@ -34,10 +34,8 @@ def single(fname, title, period, locals_txt, state_name, actions):
     ax.text(cx, cy, state_name, ha='center', va='center', fontsize=11, fontweight='bold')
     init_arrow(ax, cx, cy, r)
     self_loop(ax, cx, cy, r)
-    ax.add_patch(FancyBboxPatch((cx-3.3, cy-r-2.5), 6.6, 2.1,
-                 boxstyle="round,pad=0.1", facecolor='#f7f7f7', edgecolor='#bbb', lw=1))
-    ax.text(cx-3.1, cy-r-0.55, "\n".join(actions), ha='left', va='top',
-            fontsize=9.5, family='monospace')
+    ax.text(cx-1.7, cy-r-0.55, "\n".join(actions), ha='left', va='top',
+            fontsize=10.5, family='monospace')
     plt.savefig(fname, dpi=150, bbox_inches='tight'); plt.close()
     print('wrote', fname)
 
@@ -121,8 +119,7 @@ def game():
                "  PLAY : on fire, locked -> score+=100, newTarget; miss -> lives--\n"
                "  OVER : ignore input 600 ms; single click -> RESET, double -> START\n"
                "  RESET: 'RESET HI SCORE?'  tap=YES (highScore=0, EEPROM), wait 4s=NO")
-    ax.text(0.3, 1.35, actions, ha='left', va='top', fontsize=9, family='monospace',
-            bbox=dict(boxstyle='round,pad=0.3', fc='#f7f7f7', ec='#bbb'))
+    ax.text(0.3, 1.5, actions, ha='left', va='top', fontsize=9.5, family='monospace')
     plt.savefig('sm_game.png', dpi=150, bbox_inches='tight'); plt.close()
     print('wrote sm_game.png')
 

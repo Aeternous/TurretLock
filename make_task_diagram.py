@@ -1,94 +1,101 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+from matplotlib.patches import Rectangle, FancyBboxPatch, FancyArrowPatch
 
-fig, ax = plt.subplots(figsize=(15, 9))
-ax.set_xlim(0, 15); ax.set_ylim(0, 9.6); ax.axis('off')
+fig, ax = plt.subplots(figsize=(16, 9))
+ax.set_xlim(0, 16); ax.set_ylim(0, 9); ax.axis('off')
 
-boxes = {}
-def box(name, cx, cy, w, h, label, color, style="round"):
-    boxes[name] = (cx, cy, w, h)
-    bs = "round,pad=0.02,rounding_size=0.12" if style == "round" else "square,pad=0.02"
-    ax.add_patch(FancyBboxPatch((cx-w/2, cy-h/2), w, h, boxstyle=bs,
-                 facecolor=color, edgecolor='#333', lw=1.3, zorder=3))
+# header: system period + shared variable declarations
+ax.text(0.2, 8.75, "Period = 1 ms", fontsize=12, family='monospace')
+ax.text(0.2, 8.35,
+        "unsigned char aimX, aimY, targetX, targetY, lives, lockedOn, firePressed, clickDone, gameState;",
+        fontsize=9.5, family='monospace')
+ax.text(0.2, 8.02, "unsigned int  score, highScore;   int fineX, fineY;",
+        fontsize=9.5, family='monospace')
+
+def task(x, y, w, h, name, period):
+    ax.add_patch(Rectangle((x, y), w, h, fill=False, lw=1.7))
+    ax.text(x+w/2, y+h*0.60, name, ha='center', va='center', fontsize=11, fontweight='bold')
+    ax.text(x+w/2, y+h*0.30, f"(Period = {period})", ha='center', va='center', fontsize=8.5)
+    return (x, y, w, h)
+
+def pill(cx, cy, label):
+    w = 0.30 + 0.085*len(label)
+    ax.add_patch(FancyBboxPatch((cx-w/2, cy-0.25), w, 0.5,
+                 boxstyle="round,pad=0.02,rounding_size=0.25", fill=True,
+                 facecolor='white', edgecolor='k', lw=1.2, zorder=3))
     ax.text(cx, cy, label, ha='center', va='center', fontsize=8, zorder=4)
+    return (cx-w/2, cy, cx+w/2, cy)  # left point, right point
 
-def anchor(b, tx, ty):
-    cx, cy, w, h = b
-    dx, dy = tx-cx, ty-cy
-    if dx == 0 and dy == 0:
-        return (cx, cy)
-    sx = (w/2)/abs(dx) if dx else 1e9
-    sy = (h/2)/abs(dy) if dy else 1e9
-    s = min(sx, sy)
-    return (cx+dx*s, cy+dy*s)
+def arr(p1, p2, color='k'):
+    ax.add_patch(FancyArrowPatch(p1, p2, arrowstyle='-|>', mutation_scale=12,
+                 lw=1.2, color=color, zorder=2))
 
-def arrow(a, b, color='#444', waypoints=None):
-    ba, bb = boxes[a], boxes[b]
-    if waypoints:
-        p1 = anchor(ba, waypoints[0][0], waypoints[0][1])
-        pts = [p1] + waypoints + [anchor(bb, waypoints[-1][0], waypoints[-1][1])]
-        ax.plot([p[0] for p in pts[:-1]], [p[1] for p in pts[:-1]],
-                color=color, lw=1.0, zorder=1)
-        ax.add_patch(FancyArrowPatch(pts[-2], pts[-1], arrowstyle='-|>',
-                     mutation_scale=11, color=color, lw=1.0, zorder=1))
-    else:
-        p1 = anchor(ba, bb[0], bb[1]); p2 = anchor(bb, ba[0], ba[1])
-        ax.add_patch(FancyArrowPatch(p1, p2, arrowstyle='-|>',
-                     mutation_scale=11, color=color, lw=1.0, zorder=1))
+def hline(x1, x2, y):
+    ax.plot([x1, x2], [y, y], color='k', lw=1.2, zorder=1)
 
-GREEN='#d5e8d4'; BLUE='#dae8fc'; YELL='#fff2cc'; ORAN='#ffe6cc'
+# ---- inputs (pin lines on the left) ----
+for nm, yy in [("A0 (VRx)", 6.7), ("A1 (VRy)", 6.1), ("D2 (SW)", 5.5)]:
+    ax.text(0.15, yy, nm, ha='left', va='center', fontsize=9, family='monospace')
+    hline(1.5, 2.4, yy)
+    arr((2.2, yy), (2.4, yy))
 
-# inputs
-box('ADC', 1.2, 7.0, 2.0, 0.95, "Joystick X/Y\nADC A0, A1", GREEN)
-box('BTN', 1.2, 4.5, 2.0, 0.95, "Button\nD2 (pull-up)", GREEN)
-# tasks (name + period)
-box('T1', 3.8, 5.75, 1.8, 1.1, "T1 Joystick\n20 ms", BLUE)
-box('T2', 6.7, 5.75, 1.9, 1.1, "T2 Game SM\n20 ms", BLUE)
-box('T3', 11.1, 8.2, 1.7, 0.95, "T3 Matrix\n30 ms", BLUE)
-box('T4', 11.1, 6.4, 1.7, 0.95, "T4 Servo\n40 ms", BLUE)
-box('T5', 11.1, 4.2, 1.7, 0.95, "T5 HUD/TFT\n60 ms", BLUE)
-box('T6', 11.1, 2.2, 1.7, 0.95, "T6 LEDs\n150 ms", BLUE)
-# shared variables (name : type)
-box('VAIM', 5.2, 7.1, 1.6, 0.8, "aimX, aimY\n: uchar", YELL, "square")
-box('VBTN', 5.2, 4.4, 1.7, 0.8, "firePressed,\nclickDone : uchar", YELL, "square")
-box('VSTATE', 8.8, 8.5, 1.7, 0.7, "gameState : uchar", YELL, "square")
-box('VTGT', 8.8, 7.2, 1.7, 0.7, "targetX,Y : uchar", YELL, "square")
-box('VSCORE', 8.8, 4.5, 1.8, 0.85, "score:uint, lives:uchar,\nhighScore:uint", YELL, "square")
-box('VLOCK', 8.8, 2.9, 1.7, 0.7, "lockedOn : uchar", YELL, "square")
-# outputs
-box('OMAT', 13.6, 8.2, 1.7, 0.95, "LED Matrix\n(MAX7219)", ORAN)
-box('OSRV', 13.6, 6.4, 1.7, 0.95, "Servos\n(OCR1A/B)", ORAN)
-box('OTFT', 13.6, 4.2, 1.7, 0.95, "TFT screen", ORAN)
-box('OLED', 13.6, 2.2, 1.7, 0.95, "Red/Green\nLEDs", ORAN)
+# ---- T1 Joystick ----
+t1 = task(2.4, 4.5, 2.3, 2.6, "Joystick", "20 ms")
 
-# edges: inputs -> T1
-arrow('ADC', 'T1'); arrow('BTN', 'T1')
-# T1 writes shared vars
-arrow('T1', 'VAIM'); arrow('T1', 'VBTN')
-# reads of aim/button by Game
-arrow('VAIM', 'T2'); arrow('VBTN', 'T2')
-# aim also read by Matrix and Servo (routed cleanly over the top)
-arrow('VAIM', 'T4', color='#2e7d32', waypoints=[(5.2, 9.0), (10.0, 9.0), (10.0, 6.4)])
-arrow('VAIM', 'T3', color='#2e7d32', waypoints=[(5.2, 9.25), (10.15, 9.25), (10.15, 8.2)])
-# T2 writes shared vars
-arrow('T2', 'VSTATE'); arrow('T2', 'VTGT'); arrow('T2', 'VSCORE'); arrow('T2', 'VLOCK')
-# reads by output tasks
-arrow('VSTATE', 'T3'); arrow('VSTATE', 'T5'); arrow('VSTATE', 'T6')
-arrow('VTGT', 'T3'); arrow('VSCORE', 'T5'); arrow('VLOCK', 'T6')
-# tasks -> hardware outputs
-arrow('T3', 'OMAT'); arrow('T4', 'OSRV'); arrow('T5', 'OTFT'); arrow('T6', 'OLED')
+# ---- shared vars written by T1 ----
+pAIM = pill(5.9, 6.9, "aimX, aimY")
+pFIRE = pill(5.9, 5.8, "firePressed")
+pCLICK = pill(5.9, 4.8, "clickDone")
+for p in (pAIM, pFIRE, pCLICK):
+    arr((4.7, p[1]), (p[0], p[1]))        # T1 -> pill
 
-ax.text(7.5, 9.5, "TurretLock - Task Diagram", ha='center', fontsize=14, fontweight='bold')
-ax.text(7.5, 9.1, "scheduled by a 1 ms GCD tick (Timer2); no queues are used",
-        ha='center', fontsize=8.5, style='italic')
-# legend
-for i, (c, t) in enumerate([(GREEN,'input'), (BLUE,'task (period)'),
-                            (YELL,'shared variable (type)'), (ORAN,'hardware output')]):
-    ax.add_patch(FancyBboxPatch((1.0 + i*3.3, 0.45), 0.35, 0.3, boxstyle="square,pad=0.02",
-                 facecolor=c, edgecolor='#333', lw=1))
-    ax.text(1.45 + i*3.3, 0.6, t, ha='left', va='center', fontsize=8.5)
+# ---- T2 Game ----
+t2 = task(7.6, 4.2, 2.3, 2.6, "Game", "20 ms")
+for p in (pAIM, pFIRE, pCLICK):
+    arr((p[2], p[1]), (7.6, p[1]))        # pill -> T2
+
+# ---- shared vars written by T2 ----
+pSTATE = pill(10.9, 7.7, "gameState")
+pTGT = pill(10.9, 6.7, "targetX, targetY")
+pSCORE = pill(10.9, 4.6, "score, lives, highScore")
+pLOCK = pill(10.9, 3.2, "lockedOn")
+for p in (pSTATE, pTGT, pSCORE, pLOCK):
+    sy = min(max(p[1], 4.5), 6.5)         # start on the Game box's right edge
+    arr((9.9, sy), (p[0], p[1]))          # T2 -> pill
+
+# ---- output tasks ----
+t3 = task(12.6, 7.0, 1.9, 1.05, "Matrix", "30 ms")
+t4 = task(12.6, 5.55, 1.9, 1.05, "Servo", "40 ms")
+t5 = task(12.6, 3.85, 1.9, 1.05, "HUD/TFT", "60 ms")
+t6 = task(12.6, 2.25, 1.9, 1.05, "LEDs", "150 ms")
+
+# reads: pills -> output tasks
+arr((pSTATE[2], pSTATE[1]), (12.6, 7.85))     # gameState -> Matrix
+arr((pTGT[2], pTGT[1]), (12.6, 7.35))         # target -> Matrix
+arr((pSCORE[2], pSCORE[1]), (12.6, 4.2))      # score,lives,highScore -> HUD
+arr((pSTATE[2], pSTATE[1]), (12.6, 4.05))     # gameState -> HUD
+arr((pLOCK[2], pLOCK[1]), (12.6, 2.6))        # lockedOn -> LED
+arr((pSTATE[2], pSTATE[1]), (12.6, 2.45))     # gameState -> LED
+
+# aim is also read by Matrix and Servo (route over the top)
+ax.plot([pAIM[2], 12.2, 12.2], [pAIM[1], pAIM[1], 7.45], color='#1f7a1f', lw=1.2, zorder=1)
+arr((12.2, 7.45), (12.6, 7.45), color='#1f7a1f')     # aim -> Matrix
+ax.plot([12.2, 12.2], [7.45, 6.05], color='#1f7a1f', lw=1.2, zorder=1)
+arr((12.2, 6.05), (12.6, 6.05), color='#1f7a1f')     # aim -> Servo
+
+# ---- output pins on the right ----
+for nm, yy, src in [("LED Matrix (D10,D11,D13)", 7.52, t3),
+                    ("Servos (A2, A3)", 6.07, t4),
+                    ("TFT (D7-D9, D11, D13)", 4.37, t5),
+                    ("Red/Green LEDs (D5, D4)", 2.77, t6)]:
+    arr((14.5, yy), (15.0, yy))
+    ax.text(15.05, yy, nm, ha='left', va='center', fontsize=9, family='monospace')
+
+ax.text(8, 0.7, "Tasks (rectangles) communicate through shared variables (pills). "
+        "A 1 ms GCD scheduler ticks each task at its own period; no queues are used.",
+        ha='center', fontsize=9, style='italic')
 
 plt.savefig('task_diagram.png', dpi=150, bbox_inches='tight')
 print('wrote task_diagram.png')
