@@ -4,10 +4,8 @@
  * I acknowledge all content contained herein, excluding template or example code, is my own original work. yes
  */
 
-// TurretLock: glide a dot on the LED matrix with the joystick, land on the 2x2
-// target to score 100 points; firing while off-target costs a life. Five lives,
-// endless targets. Game over shows the high score (saved in EEPROM). Two servos
-// track the aim. Built as Concurrent SynchSMs run by a task scheduler.
+// TurretLock: aim a dot on the LED matrix, hit the target for 100 points, miss
+// and lose a life. Built as Concurrent SynchSMs run by a task scheduler.
 
 #ifndef F_CPU
 #define F_CPU 16000000UL
@@ -91,8 +89,7 @@ unsigned int  randomState = 0xACE1;
 // Game states
 enum GameStates { ST_START, ST_PLAY, ST_OVER };
 
-// Scheduler tick: Timer2 raises a flag every 1ms; the main loop runs the tasks.
-// (Doing the work in main keeps the servo's Timer1 interrupts smooth.)
+// Timer2 raises a flag every 1ms; the main loop runs the due tasks
 volatile unsigned char schedulerFlag = 0;
 void schedulerInit() {
   TCCR2A = (1 << WGM21);              // CTC mode
@@ -104,8 +101,7 @@ ISR(TIMER2_COMPA_vect) {
   schedulerFlag = 1;
 }
 
-// Servos run on Timer1 in the background: each 20ms frame raises both pins,
-// then OCR1A/OCR1B set how long each stays high (pulse width = angle).
+// Timer1 makes the servo pulses; OCR1A/OCR1B set each pin's high time (= angle)
 void setupServos() {
   DDRC  |= (1 << SERVO_X) | (1 << SERVO_Y);
   PORTC &= ~((1 << SERVO_X) | (1 << SERVO_Y));
@@ -176,8 +172,7 @@ void startNewGame() {
   newTarget();
 }
 
-// Light one dot at screen (x, y); x=0 is far-left. Maps our coordinates onto the
-// chained panels (the switches above fix any wiring flip).
+// Light one dot at (x, y); maps screen coords onto the chained panels
 void plot(unsigned char grid[8][4], unsigned char x, unsigned char y) {
   if (x >= COLS || y >= ROWS) {
     return;
@@ -331,7 +326,7 @@ int TickHUD(int state) {
     if (gameState == ST_START) {
       tft_draw_text_centered(45, "PLAY GAME", TFT_WHITE, TFT_BLACK, 2);
       tft_draw_text_centered(75, "PRESS START", TFT_CYAN, TFT_BLACK, 2);
-      tft_draw_text_centered(120, "HI", TFT_YELLOW, TFT_BLACK, 1);
+      //tft_draw_text_centered(120, "HI", TFT_YELLOW, TFT_BLACK, 1);
       numberToText(highScore, text);
       tft_draw_text_centered(135, text, TFT_YELLOW, TFT_BLACK, 2);
     } else if (gameState == ST_PLAY) {

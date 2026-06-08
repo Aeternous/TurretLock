@@ -1,7 +1,5 @@
-// Driver for the chain of four 8x8 LED matrices (MAX7219 chips).
-// We talk to the chips by hand-wiggling three pins - CS (chip select),
-// DIN (data), CLK (clock). Send a register number, then a value. The four
-// chips are daisy-chained, so one CS-low...CS-high "burst" feeds all four.
+// Driver for the four daisy-chained MAX7219 8x8 LED matrices.
+// Bit-banged on three pins: CS, DIN (data), CLK (clock).
 
 #include "phari012_max7219.h"
 
@@ -33,9 +31,7 @@ void matrixSendAll(unsigned char reg, unsigned char data) {
   PORTB = SetBit(PORTB, MAX_CS_BIT, 1);   // end the burst (chips act on it now)
 }
 
-// (re)send the five setup registers. Doing this every so often "heals" a chip
-// whose config got corrupted by noise (e.g. it flipped into the test mode that
-// lights every LED).
+// Re-send the five setup registers, so a chip glitched by noise heals itself
 void matrixRefreshConfig() {
   matrixSendAll(0x0C, 0x01);   // out of shutdown -> run normally
   matrixSendAll(0x09, 0x00);   // no built-in digit decoding (we drive raw dots)

@@ -7,15 +7,8 @@
 extern "C" {
 #endif
 
-// ST7735 1.8" 128x160, portrait orientation.
-// Control pins (AVR <- Uno):
-//   TFT CS  -> D9  (PB1)
-//   TFT DC  -> D8  (PB0)
-//   TFT RST -> D7  (PD7)
-//   TFT SDA -> D11 (PB3)  shared MOSI with MAX7219 DIN
-//   TFT SCK -> D13 (PB5)  shared clock with MAX7219 CLK
-// The shared MOSI/SCK is safe because each chip has its own CS line and we
-// only ever drive one CS low at a time.
+// ST7735 1.8" 128x160 TFT. Pins: CS=D9, DC=D8, RST=D7, SDA=D11, SCK=D13.
+// SDA/SCK are shared with the matrix; each chip has its own CS.
 
 #define TFT_W 128
 #define TFT_H 160
