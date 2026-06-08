@@ -86,7 +86,7 @@ Game Over screen shows the final and high scores -> click to return to Start.
 
 - Arduino Uno R3 (ATmega328P microcontroller)
 - MAX7219-based 4-in-1 8x8 LED matrix module (32x8 playfield)
-- ST7735 1.8" SPI color TFT LCD (128x160)
+- ST7735 1.44" SPI color TFT LCD (128x128)
 - Analog joystick module (X, Y, and push-button)
 - 2x hobby servo motors (turret X and Y)
 - 2x LEDs (red, green) with current-limiting resistors (220 ohm)
