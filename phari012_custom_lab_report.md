@@ -144,31 +144,7 @@ Scheduler: a Timer2 compare interrupt sets a flag every 1 ms (the GCD). The main
 loop runs the task list when the flag is set; each task ticks at its own period.
 The two servos are generated independently by Timer1 in the background.
 
-```
-                         SHARED VARIABLES (globals)
-   gameState:uchar  aimX,aimY:uchar  targetX,targetY:uchar  score:uint
-   lives:uchar  highScore:uint  lockedOn:uchar  firePressed:uchar
-   clickDone:uchar  fineX,fineY:int  randomState:uint
-   (no queues are used)
-
-   INPUTS                                                     OUTPUTS
-   ADC0/ADC1 (A0/A1) --> [ T1: Joystick  20ms ] --> fineX,fineY,aimX,aimY,
-   button (D2) ------->                              firePressed, clickDone
-
-   firePressed,clickDone -->[ T2: Game     20ms ] --> score, lives, highScore,
-   aimX,aimY,score,lives                                lockedOn, targetX/Y,
-                                                        gameState, EEPROM(highScore)
-
-   gameState,aimX/aimY,    --> [ T3: Matrix   30ms ] --> LED matrix (MAX7219)
-   targetX/Y
-
-   aimX,aimY -------------> [ T4: Servo    40ms ] --> OCR1A, OCR1B (servo angle)
-
-   gameState,score,lives,  --> [ T5: HUD/TFT  60ms ] --> TFT screen
-   highScore
-
-   gameState,lockedOn ----> [ T6: LEDs    150ms ] --> red LED (D5), green LED (D4)
-```
+![Task diagram](task_diagram.png)
 
 ---
 
