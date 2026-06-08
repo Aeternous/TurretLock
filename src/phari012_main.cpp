@@ -50,6 +50,7 @@
 // Game settings
 #define LIVES_START   5
 #define POINTS        100
+#define CLICK_WINDOW  400   // ms gap that ends a click burst (for triple-click)
 
 // Where the high score lives in EEPROM
 #define EE_HIGH  ((uint16_t*)0)
@@ -83,11 +84,12 @@ unsigned char lives = LIVES_START;
 unsigned int  highScore = 0;
 unsigned char lockedOn = 0;
 unsigned char firePressed = 0;   // set by the joystick task on a button press
+unsigned char clickEvent = 0;    // finished click burst: 1 = single, 3+ = triple
 unsigned char buttonLast = 1;
 unsigned int  randomState = 0xACE1;
 
-// Game states
-enum GameStates { ST_START, ST_PLAY, ST_OVER };
+// Game states (ST_RESET is the "Reset High Score?" prompt)
+enum GameStates { ST_START, ST_PLAY, ST_OVER, ST_RESET };
 
 // Timer2 raises a flag every 1ms; the main loop runs the due tasks
 volatile unsigned char schedulerFlag = 0;
@@ -222,26 +224,51 @@ int TickJoystick(int state) {
   aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);
   aimY = (unsigned char)(fineY / FINE);
 
+  // Button: immediate edge for shooting, plus a click-burst counter so the
+  // start and game-over screens can tell a single click from a triple click.
+  static unsigned char clickCount = 0;
+  static unsigned int  clickTimer = 0;
   unsigned char b = (PIND >> BUTTON) & 1;   // 1 released, 0 pressed
   if (buttonLast == 1 && b == 0) {
     firePressed = 1;
+    clickCount++;
+    clickTimer = 0;
   }
   buttonLast = b;
+
+  // A quiet gap ends the burst; report how many clicks it held
+  if (clickCount > 0) {
+    clickTimer += PERIOD_JOY;
+    if (clickTimer >= CLICK_WINDOW) {
+      clickEvent = clickCount;
+      clickCount = 0;
+    }
+  }
   return state;
 }
 
-// Task 2: the game state machine (start -> play -> game over)
+// Task 2: the game state machine (start -> play -> game over, + reset prompt).
+// Start and game-over read click bursts (single = go, triple = reset prompt);
+// play reads the raw button edge so shooting stays instant.
 int TickGame(int state) {
+  static unsigned int resetTimer = 0;
+  static unsigned int overSettle = 0;
   switch (state) {
     case ST_START:
-      if (firePressed) {
-        firePressed = 0;
+      firePressed = 0;
+      if (clickEvent >= 3) {
+        clickEvent = 0;
+        resetTimer = 0;
+        state = ST_RESET;
+      } else if (clickEvent >= 1) {
+        clickEvent = 0;
         startNewGame();
         state = ST_PLAY;
       }
       break;
 
     case ST_PLAY:
+      clickEvent = 0;                  // ignore click bursts while playing
       lockedOn = checkLock();
       if (firePressed) {
         firePressed = 0;
@@ -257,6 +284,7 @@ int TickGame(int state) {
               highScore = score;
               eeprom_update_word(EE_HIGH, highScore);   // save the new record
             }
+            overSettle = 0;
             state = ST_OVER;
           }
         }
@@ -264,8 +292,29 @@ int TickGame(int state) {
       break;
 
     case ST_OVER:
-      if (firePressed) {
-        firePressed = 0;
+      firePressed = 0;
+      if (overSettle < 600) {
+        overSettle += PERIOD_GAME;     // ignore the fatal shot's lingering burst
+        clickEvent = 0;
+      } else if (clickEvent >= 3) {
+        clickEvent = 0;
+        resetTimer = 0;
+        state = ST_RESET;
+      } else if (clickEvent >= 1) {
+        clickEvent = 0;
+        state = ST_START;
+      }
+      break;
+
+    case ST_RESET:
+      firePressed = 0;
+      resetTimer += PERIOD_GAME;
+      if (clickEvent >= 1) {           // a click confirms the wipe
+        clickEvent = 0;
+        highScore = 0;
+        eeprom_update_word(EE_HIGH, 0);
+        state = ST_START;
+      } else if (resetTimer >= 4000) { // no click for 4s = cancel
         state = ST_START;
       }
       break;
@@ -357,6 +406,11 @@ int TickHUD(int state) {
       numberToText(highScore, text);
       tft_draw_text_centered(110, text, TFT_YELLOW, TFT_BLACK, 3);
       tft_draw_text_centered(150, "PRESS START", TFT_CYAN, TFT_BLACK, 1);
+    } else if (gameState == ST_RESET) {
+      tft_draw_text_centered(35, "RESET", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(60, "HI SCORE?", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(105, "CLICK = YES", TFT_WHITE, TFT_BLACK, 1);
+      tft_draw_text_centered(125, "WAIT = NO", TFT_CYAN, TFT_BLACK, 1);
     }
     prevState = gameState;
   }
