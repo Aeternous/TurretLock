@@ -168,6 +168,35 @@ void tft_draw_text(int x, int y, const char *s, unsigned int fg, unsigned int bg
   }
 }
 
+// Draw a string centered horizontally on the screen
+void tft_draw_text_centered(int y, const char *s, unsigned int fg, unsigned int bg, unsigned char size) {
+  unsigned char len = 0;
+  const char *p = s;
+  while (*p) {
+    len++;
+    p++;
+  }
+  int width = (int)len * 6 * size;
+  int x = (TFT_W - width) / 2;
+  if (x < 0) {
+    x = 0;
+  }
+  tft_draw_text(x, y, s, fg, bg, size);
+}
+
+// Small 8x8 heart sprite, drawn as size*size blocks per pixel (for lives)
+const unsigned char HEART[8] = { 0x66, 0xFF, 0xFF, 0xFF, 0x7E, 0x3C, 0x18, 0x00 };
+void tft_draw_heart(int x, int y, unsigned char size, unsigned int color) {
+  for (unsigned char ry = 0; ry < 8; ry++) {
+    unsigned char rowBits = HEART[ry];
+    for (unsigned char rx = 0; rx < 8; rx++) {
+      if (rowBits & (0x80 >> rx)) {
+        tft_fill_rect(x + rx * size, y + ry * size, size, size, color);
+      }
+    }
+  }
+}
+
 // ST7735 power-on sequence (fixed values from the datasheet). Run once.
 void tft_init() {
   DDRB |= (1 << TFT_CS) | (1 << TFT_DC) | (1 << MAX_DIN_BIT) | (1 << MAX_CLK_BIT);

@@ -35,6 +35,10 @@ void tft_fill_rect(int x, int y, int w, int h, unsigned int color);
 // 5x7 font, scaled by 'size'. Supports 0-9, A-Z, ':' and space (others blank).
 void tft_draw_char(int x, int y, char c, unsigned int fg, unsigned int bg, unsigned char size);
 void tft_draw_text(int x, int y, const char *s, unsigned int fg, unsigned int bg, unsigned char size);
+// Draw a string horizontally centered on the screen at row y
+void tft_draw_text_centered(int y, const char *s, unsigned int fg, unsigned int bg, unsigned char size);
+// Draw a small heart sprite (for the lives display)
+void tft_draw_heart(int x, int y, unsigned char size, unsigned int color);
 
 #ifdef __cplusplus
 }

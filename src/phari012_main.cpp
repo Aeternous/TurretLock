@@ -1,16 +1,13 @@
 /* Pranae Harirajan, phari012@ucr.edu
  * Discussion Section: RB
-
- * Assignment: Custom Laboratory Project
-
- * Exercise Description: TurretLock game loop - matrix gameplay, dual servos, lock LEDs, TFT score
-
- * I acknowledge all content contained herein, excluding template or example code, 
-   is my own original work. yes
+ * Assignment: Custom Laboratory Project - Final
+ * I acknowledge all content contained herein, excluding template or example code, is my own original work. yes
  */
 
 // TurretLock: glide a dot on the LED matrix with the joystick, land on the 2x2
-// target to lock on (green LED), press to score. Two servos track the dot.
+// target to score 100 points; firing while off-target costs a life. Five lives,
+// endless targets. Game over shows the high score (saved in EEPROM). Two servos
+// track the aim. Built as Concurrent SynchSMs run by a task scheduler.
 
 #ifndef F_CPU
 #define F_CPU 16000000UL
@@ -18,7 +15,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <util/delay.h>
+#include <avr/eeprom.h>
 #include "phari012_periph.h"
 #include "phari012_max7219.h"
 #include "phari012_tft.h"
@@ -30,38 +27,82 @@
 #define SERVO_X    PC2    // A2
 #define SERVO_Y    PC3    // A3
 
-// Playfield: 32 columns wide, 8 rows tall, with a wall on each side
+// Playfield: 32 columns, 8 rows, a wall on each side
 #define COLS        32
 #define ROWS        8
-#define WALL_W      4                      // wall is 4 columns thick (matches proposal)
-#define LEFT_EDGE   WALL_W                 // first column you can be in   = 4
-#define RIGHT_EDGE  (COLS - 1 - WALL_W)    // last column you can be in     = 27
+#define WALL_W      4
+#define LEFT_EDGE   WALL_W                 // first playable column = 4
+#define RIGHT_EDGE  (COLS - 1 - WALL_W)    // last playable column  = 27
 
-// Matrix wiring fixups. The four panels are chained together, and how they're
-// wired decides the orientation. Three switches sort it out:
-//   REVERSE_PANELS - which physical end is panel 1 (left vs right)
-//   REVERSE_BITS   - which way columns count inside each single panel
-//   FLIP_Y         - top vs bottom
+// Matrix orientation switches (fix a mirrored/flipped picture without rewiring)
 #define REVERSE_PANELS  1
 #define REVERSE_BITS    0
 #define FLIP_Y          0
 
-// Joystick feel (it's spring-loaded, so we read it as a speed, not a position)
-#define FINE          64    // sub-steps per cell, makes slow moves smooth
-#define JOY_DEADZONE  90    // ignore small wiggle near center (out of ~512)
-#define JOY_SPEED     28    // bigger = slower dot
+// Joystick feel (spring-loaded, so it's a speed not a position)
+#define FINE          64
+#define JOY_DEADZONE  90
+#define JOY_SPEED     28
 
-// Servo pulse widths in Timer1 ticks (0.5us each): ~0.5ms / 1.5ms / 2.5ms
+// Servo pulse widths in Timer1 ticks (0.5us each)
 #define SERVO_LEFT    1000
 #define SERVO_MID     3000
 #define SERVO_RIGHT   5000
 
+// Game settings
+#define LIVES_START   5
+#define POINTS        100
+
+// Where the high score lives in EEPROM
+#define EE_HIGH  ((uint16_t*)0)
+
+// Task scheduler
+typedef struct _task {
+  signed char state;
+  unsigned long period;
+  unsigned long elapsedTime;
+  int (*TickFct)(int);
+} task;
+
+#define NUM_TASKS  6
+task tasks[NUM_TASKS];
+
+const unsigned long GCD_PERIOD   = 1;    // scheduler tick = 1ms
+const unsigned long PERIOD_JOY   = 20;
+const unsigned long PERIOD_GAME  = 20;
+const unsigned long PERIOD_MATRIX = 30;
+const unsigned long PERIOD_SERVO = 40;
+const unsigned long PERIOD_HUD   = 60;
+const unsigned long PERIOD_LED   = 150;
+
 // Shared variables
-unsigned char aimX = 0, aimY = 0;       // where the dot is (screen columns/rows)
-unsigned char targetX = 0, targetY = 0; // top-left corner of the 2x2 target
+unsigned char gameState  = 0;    // mirror of the game task's state
+int           fineX = 0, fineY = 0;
+unsigned char aimX = 0, aimY = 0;
+unsigned char targetX = 0, targetY = 0;
 unsigned int  score = 0;
-unsigned char lockedOn = 0;             // is the dot touching the target?
-unsigned int  randomState = 0xACE1;     // seed for the random target placement
+unsigned char lives = LIVES_START;
+unsigned int  highScore = 0;
+unsigned char lockedOn = 0;
+unsigned char firePressed = 0;   // set by the joystick task on a button press
+unsigned char buttonLast = 1;
+unsigned int  randomState = 0xACE1;
+
+// Game states
+enum GameStates { ST_START, ST_PLAY, ST_OVER };
+
+// Scheduler tick: Timer2 raises a flag every 1ms; the main loop runs the tasks.
+// (Doing the work in main keeps the servo's Timer1 interrupts smooth.)
+volatile unsigned char schedulerFlag = 0;
+void schedulerInit() {
+  TCCR2A = (1 << WGM21);              // CTC mode
+  TCCR2B = (1 << CS22);               // prescaler 64
+  OCR2A  = 249;                       // 16MHz / 64 / 250 = 1000 Hz = 1ms
+  TIMSK2 = (1 << OCIE2A);
+}
+ISR(TIMER2_COMPA_vect) {
+  schedulerFlag = 1;
+}
 
 // Servos run on Timer1 in the background: each 20ms frame raises both pins,
 // then OCR1A/OCR1B set how long each stays high (pulse width = angle).
@@ -75,11 +116,9 @@ void setupServos() {
   OCR1B  = SERVO_MID;
   TIMSK1 = (1 << TOIE1) | (1 << OCIE1A) | (1 << OCIE1B);
 }
-// Frame start: raise both servo pins
 ISR(TIMER1_OVF_vect) {
   PORTC |= (1 << SERVO_X) | (1 << SERVO_Y);
 }
-// Pulse done: drop the pin
 ISR(TIMER1_COMPA_vect) {
   PORTC &= ~(1 << SERVO_X);
 }
@@ -87,20 +126,7 @@ ISR(TIMER1_COMPB_vect) {
   PORTC &= ~(1 << SERVO_Y);
 }
 
-// Serial (so we can watch the score in the monitor)
-void setupSerial() {
-  UBRR0L = 103;                                  // 9600 baud at 16MHz
-  UCSR0B = (1 << TXEN0);
-  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);         // 8N1
-}
-void serialText(const char *s) {
-  while (*s) {
-    while (!(UCSR0A & (1 << UDRE0))) {}
-    UDR0 = *s++;
-  }
-}
-
-// Turn a number like 42 into text "42"
+// Turn a number into text, e.g. 42 -> "42"
 void numberToText(unsigned int n, char *out) {
   char rev[6];
   unsigned char i = 0;
@@ -109,23 +135,18 @@ void numberToText(unsigned int n, char *out) {
     out[1] = '\0';
     return;
   }
-  while (n) { rev[i++] = '0' + (n % 10); n /= 10; }
+  while (n) {
+    rev[i++] = '0' + (n % 10);
+    n /= 10;
+  }
   unsigned char j = 0;
-  while (i--) { out[j++] = rev[i]; }
+  while (i--) {
+    out[j++] = rev[i];
+  }
   out[j] = '\0';
 }
 
-// Show the score. "SCORE" is painted once in main(); here we only repaint the
-// number (wiping its box first so 10 -> 9 doesn't leave the old digit behind).
-void showScore(unsigned int sc) {
-  char text[6];
-  numberToText(sc, text);
-  serialText("Score: "); serialText(text); serialText("\r\n");
-  tft_fill_rect(8, 46, TFT_W - 16, 32, TFT_BLACK);
-  tft_draw_text(8, 46, text, TFT_CYAN, TFT_BLACK, 4);
-}
-
-// A tiny home-made random number generator (good enough to place a target)
+// Tiny random generator, good enough to place a target
 unsigned int randomNext() {
   randomState ^= randomState << 7;
   randomState ^= randomState >> 9;
@@ -133,14 +154,36 @@ unsigned int randomNext() {
   return randomState;
 }
 
-// Light one dot at screen (x, y); x=0 is far-left. The only place that maps our
-// coordinates onto the chained panels, so the switches above fix any wiring flip.
+// Drop a new target somewhere legal (the 2x2 stays between the walls)
+void newTarget() {
+  targetX = LEFT_EDGE + (randomNext() % (RIGHT_EDGE - LEFT_EDGE));
+  targetY = randomNext() % (ROWS - 1);
+}
+
+// Locked when the dot is on any of the four cells of the 2x2 target
+unsigned char checkLock() {
+  return (aimX == targetX || aimX == targetX + 1) &&
+         (aimY == targetY || aimY == targetY + 1);
+}
+
+// Start a fresh round: reset score and lives, center the dot, spawn a target
+void startNewGame() {
+  score = 0;
+  lives = LIVES_START;
+  fineX = ((RIGHT_EDGE - LEFT_EDGE) * FINE) / 2;
+  fineY = ((ROWS - 1) * FINE) / 2;
+  lockedOn = 0;
+  newTarget();
+}
+
+// Light one dot at screen (x, y); x=0 is far-left. Maps our coordinates onto the
+// chained panels (the switches above fix any wiring flip).
 void plot(unsigned char grid[8][4], unsigned char x, unsigned char y) {
   if (x >= COLS || y >= ROWS) {
     return;
   }
-  unsigned char panel = x / 8;   // which of the 4 panels
-  unsigned char bit   = x % 8;   // which LED inside that panel
+  unsigned char panel = x / 8;
+  unsigned char bit   = x % 8;
   if (REVERSE_PANELS) {
     panel = 3 - panel;
   }
@@ -153,98 +196,188 @@ void plot(unsigned char grid[8][4], unsigned char x, unsigned char y) {
   grid[y][panel] |= (1 << bit);
 }
 
-// Drop a new target somewhere legal (the whole 2x2 stays between the walls)
-void newTarget() {
-  targetX = LEFT_EDGE + (randomNext() % (RIGHT_EDGE - LEFT_EDGE));   // 4..26
-  targetY = randomNext() % (ROWS - 1);                              // 0..6
-}
-
-// Locked when the dot is on any of the four cells of the 2x2 target
-unsigned char checkLock() {
-  return (aimX == targetX || aimX == targetX + 1) &&
-         (aimY == targetY || aimY == targetY + 1);
-}
-
-int main(void) {
-  DDRD  |= (1 << GREEN_LED) | (1 << RED_LED);     // LEDs out
-  DDRD  &= ~(1 << BUTTON);                         // button in
-  PORTD |= (1 << BUTTON);                          // pull-up (reads 1 until pressed)
-
-  setupSerial();
-  ADC_init();
-  matrixSetupPins();
-  matrixInit();
-  setupServos();
-  sei();
-
-  tft_init();
-  tft_fill_screen(TFT_BLUE);                       // quick "screen is alive" flash
-  _delay_ms(250);
-  tft_fill_screen(TFT_BLACK);
-  tft_draw_text(8, 10, "SCORE", TFT_WHITE, TFT_BLACK, 2);
-
-  randomState ^= (unsigned int)(ADC_read(0) << 6) ^ (unsigned int)ADC_read(1);  // stir in joystick noise
-  if (randomState == 0) {
-    randomState = 0xBEEF;
+// Task 1: read the joystick into the aim (speed control) and catch fire presses
+enum JoyStates { JOY_RUN };
+int TickJoystick(int state) {
+  int pushX = (int)ADC_read(0) - 512;
+  int pushY = (int)ADC_read(1) - 512;
+  if (pushX > -JOY_DEADZONE && pushX < JOY_DEADZONE) {
+    pushX = 0;
   }
-  newTarget();
-  score = 0;
-  showScore(score);
-  serialText("\r\nTurretLock - aim with joystick, press to fire.\r\n");
+  if (pushY > -JOY_DEADZONE && pushY < JOY_DEADZONE) {
+    pushY = 0;
+  }
 
+  fineX += pushX / JOY_SPEED;
+  fineY -= pushY / JOY_SPEED;
+
+  if (fineX < 0) {
+    fineX = 0;
+  }
+  if (fineX > (RIGHT_EDGE - LEFT_EDGE) * FINE) {
+    fineX = (RIGHT_EDGE - LEFT_EDGE) * FINE;
+  }
+  if (fineY < 0) {
+    fineY = 0;
+  }
+  if (fineY > (ROWS - 1) * FINE) {
+    fineY = (ROWS - 1) * FINE;
+  }
+
+  aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);
+  aimY = (unsigned char)(fineY / FINE);
+
+  unsigned char b = (PIND >> BUTTON) & 1;   // 1 released, 0 pressed
+  if (buttonLast == 1 && b == 0) {
+    firePressed = 1;
+  }
+  buttonLast = b;
+  return state;
+}
+
+// Task 2: the game state machine (start -> play -> game over)
+int TickGame(int state) {
+  switch (state) {
+    case ST_START:
+      if (firePressed) {
+        firePressed = 0;
+        startNewGame();
+        state = ST_PLAY;
+      }
+      break;
+
+    case ST_PLAY:
+      lockedOn = checkLock();
+      if (firePressed) {
+        firePressed = 0;
+        if (lockedOn) {
+          score += POINTS;
+          newTarget();
+        } else {
+          if (lives > 0) {
+            lives--;
+          }
+          if (lives == 0) {
+            if (score > highScore) {
+              highScore = score;
+              eeprom_update_word(EE_HIGH, highScore);   // save the new record
+            }
+            state = ST_OVER;
+          }
+        }
+      }
+      break;
+
+    case ST_OVER:
+      if (firePressed) {
+        firePressed = 0;
+        state = ST_START;
+      }
+      break;
+
+    default:
+      state = ST_START;
+      break;
+  }
+  gameState = state;
+  return state;
+}
+
+// Task 3: draw the playfield (walls, target, dot) on the LED matrix
+enum MatrixStates { MAT_RUN };
+int TickMatrix(int state) {
   unsigned char grid[8][4];
-  int fineX = ((RIGHT_EDGE - LEFT_EDGE) * FINE) / 2;   // dot's fine position, starts centered
-  int fineY = ((ROWS - 1) * FINE) / 2;
-  unsigned char buttonLast = 1;
-  unsigned char frame = 0;
-
-  while (1) {
-    // Joystick as a speed: push moves the dot, releasing leaves it put
-    int pushX = (int)ADC_read(0) - 512;
-    int pushY = (int)ADC_read(1) - 512;
-    if (pushX > -JOY_DEADZONE && pushX < JOY_DEADZONE) {
-      pushX = 0;
+  for (unsigned char r = 0; r < 8; r++) {
+    for (unsigned char p = 0; p < 4; p++) {
+      grid[r][p] = 0;
     }
-    if (pushY > -JOY_DEADZONE && pushY < JOY_DEADZONE) {
-      pushY = 0;
+  }
+  if (gameState == ST_PLAY) {
+    for (unsigned char y = 0; y < ROWS; y++) {
+      for (unsigned char w = 0; w < WALL_W; w++) {
+        plot(grid, w, y);
+        plot(grid, COLS - 1 - w, y);
+      }
     }
+    plot(grid, targetX,     targetY);
+    plot(grid, targetX + 1, targetY);
+    plot(grid, targetX,     targetY + 1);
+    plot(grid, targetX + 1, targetY + 1);
+    plot(grid, aimX, aimY);
+  }
+  matrixDraw(grid);
+  return state;
+}
 
-    fineX += pushX / JOY_SPEED;
-    fineY -= pushY / JOY_SPEED;                  // minus so pushing up moves up
+// Task 4: point the servos at wherever the dot is
+enum ServoStates { SRV_RUN };
+int TickServo(int state) {
+  OCR1A = (unsigned int)map_value(LEFT_EDGE, RIGHT_EDGE, SERVO_LEFT,  SERVO_RIGHT, aimX);
+  OCR1B = (unsigned int)map_value(0, ROWS - 1,          SERVO_RIGHT, SERVO_LEFT,  aimY);
+  return state;
+}
 
-    if (fineX < 0) {
-      fineX = 0;
+// Task 5: the TFT screen - start screen, live score + hearts, game over
+enum HudStates { HUD_RUN };
+int TickHUD(int state) {
+  static unsigned char prevState = 0xFF;
+  static unsigned int  prevScore = 0xFFFF;
+  static unsigned char prevLives = 0xFF;
+  char text[12];
+
+  // On a state change, repaint the whole screen for that screen
+  if (gameState != prevState) {
+    tft_fill_screen(TFT_BLACK);
+    if (gameState == ST_START) {
+      tft_draw_text_centered(45, "PLAY GAME", TFT_WHITE, TFT_BLACK, 2);
+      tft_draw_text_centered(75, "PRESS START", TFT_CYAN, TFT_BLACK, 2);
+      tft_draw_text_centered(120, "HI", TFT_YELLOW, TFT_BLACK, 1);
+      numberToText(highScore, text);
+      tft_draw_text_centered(135, text, TFT_YELLOW, TFT_BLACK, 2);
+    } else if (gameState == ST_PLAY) {
+      tft_draw_text_centered(6, "SCORE", TFT_WHITE, TFT_BLACK, 1);
+      prevScore = 0xFFFF;   // force the score and hearts to draw below
+      prevLives = 0xFF;
+    } else if (gameState == ST_OVER) {
+      tft_draw_text_centered(25, "GAME OVER", TFT_RED, TFT_BLACK, 2);
+      tft_draw_text_centered(75, "HIGH SCORE", TFT_WHITE, TFT_BLACK, 2);
+      numberToText(highScore, text);
+      tft_draw_text_centered(100, text, TFT_YELLOW, TFT_BLACK, 3);
+      tft_draw_text_centered(145, "PRESS START", TFT_CYAN, TFT_BLACK, 1);
     }
-    if (fineX > (RIGHT_EDGE - LEFT_EDGE) * FINE) {
-      fineX = (RIGHT_EDGE - LEFT_EDGE) * FINE;
+    prevState = gameState;
+  }
+
+  // During play, refresh the score number and the hearts only when they change
+  if (gameState == ST_PLAY) {
+    if (score != prevScore) {
+      tft_fill_rect(0, 20, TFT_W, 24, TFT_BLACK);
+      numberToText(score, text);
+      tft_draw_text_centered(20, text, TFT_CYAN, TFT_BLACK, 3);
+      prevScore = score;
     }
-    if (fineY < 0) {
-      fineY = 0;
+    if (lives != prevLives) {
+      tft_fill_rect(0, 70, TFT_W, 20, TFT_BLACK);
+      int width = lives * 18;
+      int x = (TFT_W - width) / 2;
+      if (x < 0) {
+        x = 0;
+      }
+      for (unsigned char k = 0; k < lives; k++) {
+        tft_draw_heart(x + k * 18, 72, 2, TFT_RED);
+      }
+      prevLives = lives;
     }
-    if (fineY > (ROWS - 1) * FINE) {
-      fineY = (ROWS - 1) * FINE;
-    }
+  }
+  return state;
+}
 
-    aimX = LEFT_EDGE + (unsigned char)(fineX / FINE);  // always stays between the walls
-    aimY = (unsigned char)(fineY / FINE);
-
-    // Point the turret at the dot
-    OCR1A = (unsigned int)map_value(LEFT_EDGE, RIGHT_EDGE, SERVO_LEFT,  SERVO_RIGHT, aimX);
-    OCR1B = (unsigned int)map_value(0, ROWS - 1,          SERVO_RIGHT, SERVO_LEFT,  aimY);
-
-    lockedOn = checkLock();
-
-    // Fire: only on the press (not while held), and only if we're locked
-    unsigned char button = (PIND >> BUTTON) & 1;
-    if (buttonLast == 1 && button == 0 && lockedOn) {
-      score++;
-      showScore(score);
-      newTarget();
-    }
-    buttonLast = button;
-
-    // LEDs: locked -> green on, red off. not locked -> green off, red blinks.
-    unsigned char blink = (frame >> 4) & 1;
+// Task 6: lock LEDs - green solid when on target, red blinking otherwise
+enum LedStates { LED_RUN };
+int TickLED(int state) {
+  static unsigned char blink = 0;
+  blink ^= 1;
+  if (gameState == ST_PLAY) {
     if (lockedOn) {
       PORTD |=  (1 << GREEN_LED);
       PORTD &= ~(1 << RED_LED);
@@ -256,34 +389,55 @@ int main(void) {
         PORTD &= ~(1 << RED_LED);
       }
     }
+  } else {
+    PORTD &= ~((1 << GREEN_LED) | (1 << RED_LED));
+  }
+  return state;
+}
 
-    // Re-send the matrix config now and then, so a chip glitched by a loose
-    // wire (e.g. stuck all-on) heals itself
-    if ((frame & 0x1F) == 0) {
-      matrixRefreshConfig();
-    }
+int main(void) {
+  DDRD  |= (1 << GREEN_LED) | (1 << RED_LED);
+  DDRD  &= ~(1 << BUTTON);
+  PORTD |= (1 << BUTTON);                          // pull-up
 
-    // Draw walls, target, then the dot, and push it to the matrix
-    for (unsigned char r = 0; r < 8; r++) {
-      for (unsigned char p = 0; p < 4; p++) {
-        grid[r][p] = 0;
+  ADC_init();
+  matrixSetupPins();
+  matrixInit();
+  setupServos();
+  tft_init();
+  schedulerInit();
+  sei();
+
+  // Load the saved high score (a blank EEPROM reads 0xFFFF)
+  highScore = eeprom_read_word(EE_HIGH);
+  if (highScore == 0xFFFF) {
+    highScore = 0;
+  }
+  randomState ^= (unsigned int)(ADC_read(0) << 6) ^ (unsigned int)ADC_read(1);
+  if (randomState == 0) {
+    randomState = 0xBEEF;
+  }
+
+  gameState = ST_START;
+
+  unsigned char i = 0;
+  tasks[i].state = JOY_RUN;  tasks[i].period = PERIOD_JOY;    tasks[i].elapsedTime = PERIOD_JOY;    tasks[i].TickFct = &TickJoystick; i++;
+  tasks[i].state = ST_START; tasks[i].period = PERIOD_GAME;   tasks[i].elapsedTime = PERIOD_GAME;   tasks[i].TickFct = &TickGame;     i++;
+  tasks[i].state = MAT_RUN;  tasks[i].period = PERIOD_MATRIX; tasks[i].elapsedTime = PERIOD_MATRIX; tasks[i].TickFct = &TickMatrix;   i++;
+  tasks[i].state = SRV_RUN;  tasks[i].period = PERIOD_SERVO;  tasks[i].elapsedTime = PERIOD_SERVO;  tasks[i].TickFct = &TickServo;    i++;
+  tasks[i].state = HUD_RUN;  tasks[i].period = PERIOD_HUD;    tasks[i].elapsedTime = PERIOD_HUD;    tasks[i].TickFct = &TickHUD;      i++;
+  tasks[i].state = LED_RUN;  tasks[i].period = PERIOD_LED;    tasks[i].elapsedTime = PERIOD_LED;    tasks[i].TickFct = &TickLED;      i++;
+
+  while (1) {
+    while (!schedulerFlag) {}        // wait for the next 1ms tick
+    schedulerFlag = 0;
+    for (unsigned char t = 0; t < NUM_TASKS; t++) {
+      if (tasks[t].elapsedTime == tasks[t].period) {
+        tasks[t].state = tasks[t].TickFct(tasks[t].state);
+        tasks[t].elapsedTime = 0;
       }
+      tasks[t].elapsedTime += GCD_PERIOD;
     }
-    for (unsigned char y = 0; y < ROWS; y++) {
-      for (unsigned char w = 0; w < WALL_W; w++) {
-        plot(grid, w, y);                    // left wall
-        plot(grid, COLS - 1 - w, y);         // right wall
-      }
-    }
-    plot(grid, targetX,     targetY);
-    plot(grid, targetX + 1, targetY);
-    plot(grid, targetX,     targetY + 1);
-    plot(grid, targetX + 1, targetY + 1);
-    plot(grid, aimX, aimY);
-    matrixDraw(grid);
-
-    frame++;
-    _delay_ms(15);
   }
 
   return 0;

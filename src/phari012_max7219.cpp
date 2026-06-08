@@ -18,8 +18,8 @@ void sendByte(unsigned char value) {
   for (int i = 7; i >= 0; i--) {
     unsigned char bit = (value >> i) & 0x01;
     PORTB = SetBit(PORTB, MAX_DIN_BIT, bit);  // put the bit on the data line
-    PORTB = SetBit(PORTB, MAX_CLK_BIT, 0);    // tick the clock low...
-    PORTB = SetBit(PORTB, MAX_CLK_BIT, 1);    // ...and high, which clocks it in
+    PORTB = SetBit(PORTB, MAX_CLK_BIT, 0);    // tick the clock low
+    PORTB = SetBit(PORTB, MAX_CLK_BIT, 1);    // and high, which clocks it in
   }
 }
 
