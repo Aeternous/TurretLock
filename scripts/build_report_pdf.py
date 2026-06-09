@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import re
+import re, os
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # run from repo root
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -8,8 +9,8 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Preformatt
                                 Table, TableStyle, HRFlowable, Image)
 from reportlab.lib.utils import ImageReader
 
-SRC = "phari012_custom_lab_report.md"
-OUT = "phari012_custom_lab_report.pdf"
+SRC = "report/phari012_custom_lab_report.md"
+OUT = "report/phari012_custom_lab_report.pdf"
 
 styles = getSampleStyleSheet()
 title_style = ParagraphStyle("T", parent=styles["Title"], fontSize=18, spaceAfter=10)
@@ -50,7 +51,7 @@ while i < len(lines):
     mimg = re.match(r"!\[.*?\]\((.+?)\)", s)
     if mimg:
         flush_para()
-        path = mimg.group(1)
+        path = os.path.join(os.path.dirname(SRC), mimg.group(1))  # resolve relative to the md
         iw, ih = ImageReader(path).getSize()
         w = min(5.2 * inch, iw)
         h = w * ih / iw

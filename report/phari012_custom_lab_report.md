@@ -114,9 +114,9 @@ All peripheral drivers (LED matrix, TFT, ADC/joystick) were written from scratch
 
 ## Wiring Diagram
 
-![Wiring diagram](wiring_diagram.png)
+![Wiring diagram](../images/wiring_diagram.png)
 
-![Physical setup photo](setup_photo.jpg)
+![Physical setup photo](../images/setup_photo.jpg)
 
 Pin map (Arduino Uno):
 
@@ -144,7 +144,7 @@ Scheduler: a Timer2 compare interrupt sets a flag every 1 ms (the GCD). The main
 loop runs the task list when the flag is set; each task ticks at its own period.
 The two servos are generated independently by Timer1 in the background.
 
-![Task diagram](task_diagram.png)
+![Task diagram](../images/task_diagram.png)
 
 ---
 
@@ -153,14 +153,14 @@ The two servos are generated independently by Timer1 in the background.
 One SynchSM per task. Each shows the period, local variables, states, the initial
 transition, self-loops (the "stay" condition), and the state actions.
 
-![T1 Joystick SynchSM](sm_joystick.png)
+![T1 Joystick SynchSM](../images/sm_joystick.png)
 
-![T2 Game SynchSM](sm_game.png)
+![T2 Game SynchSM](../images/sm_game.png)
 
-![T3 Matrix SynchSM](sm_matrix.png)
+![T3 Matrix SynchSM](../images/sm_matrix.png)
 
-![T4 Servo SynchSM](sm_servo.png)
+![T4 Servo SynchSM](../images/sm_servo.png)
 
-![T5 HUD/TFT SynchSM](sm_hud.png)
+![T5 HUD/TFT SynchSM](../images/sm_hud.png)
 
-![T6 LEDs SynchSM](sm_led.png)
+![T6 LEDs SynchSM](../images/sm_led.png)

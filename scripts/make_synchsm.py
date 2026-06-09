@@ -1,3 +1,5 @@
+import os
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -29,7 +31,7 @@ def single(fname, title, period, locals_list, state, init_action, action):
         ax.text(cx-2.05, cy-0.6, init_action, ha='center', va='top', fontsize=10, family='monospace')
     self_loop(ax, cx, cy, r)
     ax.text(cx-2.3, cy-r-0.5, action, ha='left', va='top', fontsize=10.5, family='monospace')
-    plt.savefig(fname, dpi=150, bbox_inches='tight'); plt.close()
+    plt.savefig('images/'+fname, dpi=150, bbox_inches='tight'); plt.close()
     print('wrote', fname)
 
 single('sm_joystick.png', "Joystick Task", "20 ms",
@@ -159,7 +161,7 @@ def game():
             "         else count taps over DBL_WINDOW -> 1=RESET, 2=START\n"
             "  RESET: resetTimer += 20;  show 'RESET HI SCORE?'")
     ax.text(0.3, 1.7, code, ha='left', va='top', fontsize=9, family='monospace')
-    plt.savefig('sm_game.png', dpi=150, bbox_inches='tight'); plt.close()
+    plt.savefig('images/sm_game.png', dpi=150, bbox_inches='tight'); plt.close()
     print('wrote sm_game.png')
 
 game()

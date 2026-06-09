@@ -1,3 +1,5 @@
+import os
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -114,5 +116,5 @@ ax.text(6.5, 0.35,
         'Servos take +5V from an external supply with a common ground.',
         ha='center', fontsize=7, style='italic')
 
-plt.savefig('wiring_diagram.png', dpi=150, bbox_inches='tight')
+plt.savefig('images/wiring_diagram.png', dpi=150, bbox_inches='tight')
 print('wrote wiring_diagram.png')

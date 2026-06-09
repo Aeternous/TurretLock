@@ -1,3 +1,5 @@
+import os
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -115,5 +117,5 @@ decls = (
 )
 ax.text(0.3, 1.7, decls, ha='left', va='top', fontsize=10.5, family='monospace')
 
-plt.savefig('task_diagram.png', dpi=150, bbox_inches='tight')
+plt.savefig('images/task_diagram.png', dpi=150, bbox_inches='tight')
 print('wrote task_diagram.png')
