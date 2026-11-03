@@ -3,3 +3,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Local tooling / editor settings (never commit)
+.clc/
+.claude/
+.DS_Store
